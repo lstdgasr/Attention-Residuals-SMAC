@@ -1,0 +1,179 @@
+\section{Attention Residuals 的 MARL 适配方法}
+
+\subsection{总体结构}
+
+本文保持 QMIX、IQL、VDN 的 learner、mixer 和训练流程不变，只修改 agent 网络。
+原始 RNN agent 首先将输入编码为 hidden state，再直接通过 Q head 输出动作价值：
+\begin{align}
+  e_i^t &= \mathrm{ReLU}(W_e x_i^t+b_e), \\
+  h_i^t &= \mathrm{GRUCell}(e_i^t,h_i^{t-1}), \\
+  Q_i^t &= W_q h_i^t + b_q.
+\end{align}
+
+AttnRes-RNN agent 在 GRU hidden state 与 Q head 之间加入 Depthwise Attention Residual 模块：
+\begin{align}
+  \bar{h}_i^t &= \mathrm{AttnRes}(h_i^t), \\
+  Q_i^t &= W_q \bar{h}_i^t + b_q.
+\end{align}
+Depth-only control 则将该模块替换为普通 residual MLP stack，用于判断性能变化是否只是来自额外网络深度。
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[
+    node distance=0.65cm and 0.72cm,
+    block/.style={draw, rounded corners, thick, minimum width=1.55cm, minimum height=0.65cm, align=center},
+    input/.style={block, fill=orange!22, draw=orange!85!black},
+    core/.style={block, fill=blue!14, draw=blue!70!black},
+    attn/.style={block, fill=purple!16, draw=purple!75!black, minimum width=2.25cm},
+    mlp/.style={block, fill=green!17, draw=green!60!black, minimum width=2.25cm},
+    qout/.style={block, fill=red!12, draw=red!70!black},
+    arr/.style={-{Latex[length=2.2mm]}, thick}
+  ]
+    \node[input] (x1) {Input \(x_i^t\)};
+    \node[core, right=of x1] (fc11) {FC + ReLU};
+    \node[core, right=of fc11] (gru1) {GRU};
+    \node[qout, right=of gru1] (q1) {Q head};
+    \node[left=0.15cm of x1] (l1) {Original};
+    \draw[arr] (x1) -- (fc11);
+    \draw[arr] (fc11) -- (gru1);
+    \draw[arr] (gru1) -- (q1);
+
+    \node[input, below=0.75cm of x1] (x2) {Input \(x_i^t\)};
+    \node[core, right=of x2] (fc12) {FC + ReLU};
+    \node[core, right=of fc12] (gru2) {GRU};
+    \node[attn, right=of gru2] (ar) {Depthwise\\AttnRes};
+    \node[qout, right=of ar] (q2) {Q head};
+    \node[left=0.15cm of x2] (l2) {AttnRes};
+    \draw[arr] (x2) -- (fc12);
+    \draw[arr] (fc12) -- (gru2);
+    \draw[arr] (gru2) -- (ar);
+    \draw[arr] (ar) -- (q2);
+
+    \node[input, below=0.75cm of x2] (x3) {Input \(x_i^t\)};
+    \node[core, right=of x3] (fc13) {FC + ReLU};
+    \node[core, right=of fc13] (gru3) {GRU};
+    \node[mlp, right=of gru3] (dm) {Residual\\MLP stack};
+    \node[qout, right=of dm] (q3) {Q head};
+    \node[left=0.15cm of x3] (l3) {Depth-only};
+    \draw[arr] (x3) -- (fc13);
+    \draw[arr] (fc13) -- (gru3);
+    \draw[arr] (gru3) -- (dm);
+    \draw[arr] (dm) -- (q3);
+  \end{tikzpicture}
+  \caption{原始 RNN agent、AttnRes-RNN agent 与 depth-only control 的结构对比。本文只修改 GRU hidden state 后的 agent 侧模块，保持 MARL 后端算法不变。}
+  \label{fig:agent-structure}
+\end{figure}
+
+\subsection{Depthwise Attention Residual}
+
+Depthwise Attention Residual 将 GRU hidden state 视作初始 depth source，并通过若干虚拟深度层生成新的 source。
+设输入 hidden state 为 \(h \in \mathbb{R}^{d}\)，初始 source 集合为：
+\begin{equation}
+  \mathcal{S}_0 = \{h\}.
+\end{equation}
+第 \(\ell\) 个 AttnRes layer 使用一个可学习 query \(q_\ell \in \mathbb{R}^{d}\) 对当前 source 集合进行 attention：
+\begin{align}
+  \alpha_{\ell,j}
+  &=
+  \frac{
+    \exp\left(q_\ell^{\top}\mathrm{RMSNorm}(s_j)/\sqrt{d}\right)
+  }{
+    \sum_{s_m\in\mathcal{S}_{\ell}}
+    \exp\left(q_\ell^{\top}\mathrm{RMSNorm}(s_m)/\sqrt{d}\right)
+  }, \\
+  a_\ell
+  &=
+  \sum_{s_j\in\mathcal{S}_{\ell}}
+  \alpha_{\ell,j}s_j .
+\end{align}
+随后，\(a_\ell\) 经过两层 MLP transform 得到新增 source：
+\begin{align}
+  u_\ell &= \mathrm{Dropout}\left(F_\ell(a_\ell)\right), \\
+  \mathcal{S}_{\ell+1} &= \mathcal{S}_{\ell} \cup \{u_\ell\}, \\
+  z_\ell &= a_\ell + u_\ell .
+\end{align}
+其中 \(z_\ell\) 是第 \(\ell\) 层输出，最终 AttnRes 模块返回 \(z_L\)。
+在实现中，query 采用零初始化，以降低训练早期对原始 hidden representation 的扰动。
+
+\subsection{Full、Lightweight 与 Block 变体}
+
+Full AttnRes 使用上述完整 depth-wise attention 过程，并在本文实验中设置 \(L=4\)。
+它对应最直接的重型结构迁移，即在浅层 recurrent agent 后额外构造 4 层虚拟 depth source，并让每层都可以从所有已有 source 中选择信息。
+
+Lightweight AttnRes-L2 与 Full AttnRes 使用相同公式，但将层数减少为 \(L=2\)。
+该变体用于检验降低结构复杂度后，Attention Residuals 是否更适合 PyMARL 中较浅的 RNN agent。
+如果 L2 版本相比 full 版本更稳定，则说明直接迁移重型 LLM 模块可能存在过度复杂化问题。
+
+Block AttnRes 使用 block-wise source aggregation。
+设 block size 为 \(B\)，每个 block 内部的新增 source 先累积为 partial block：
+\begin{equation}
+  p_{\ell} =
+  \begin{cases}
+    u_\ell, & \ell \text{ is the first layer in a block},\\
+    p_{\ell-1}+u_\ell, & \text{otherwise}.
+  \end{cases}
+\end{equation}
+当到达 block 边界时，\(p_\ell\) 被加入 completed block 集合；后续 attention 只在 completed blocks 和当前 partial block 上执行。
+本文使用 \(L=4, B=2\) 的 block 设置，用于观察分块聚合是否能够改善 full 版本的稳定性。
+
+\subsection{Depth-only Control}
+
+Depth-only control 不使用 query、attention 或 RMSNorm，而是仅在 GRU hidden state 后添加 residual MLP stack。
+设 \(z_0=P_{\mathrm{in}}h\)，则第 \(\ell\) 层计算为：
+\begin{equation}
+  z_\ell =
+  \mathrm{ReLU}
+  \left(
+    z_{\ell-1}+G_\ell(z_{\ell-1})
+  \right),
+  \quad \ell=1,\ldots,L,
+\end{equation}
+最终输出为：
+\begin{equation}
+  \bar{h}=P_{\mathrm{out}}z_L.
+\end{equation}
+该对照组的作用是区分“额外深度”与“depth-wise attention selection”。
+如果 depth-only control 不能稳定提升性能，则说明单纯增加后处理 MLP 深度并不是收益来源。
+
+\begin{algorithm}[H]
+  \caption{AttnRes-RNN Agent Forward Pass}
+  \label{alg:attnres-rnn-forward}
+  \begin{algorithmic}[1]
+    \Require agent input \(x_i^t\), previous hidden state \(h_i^{t-1}\), AttnRes layers \(L\)
+    \State \(e_i^t \gets \mathrm{ReLU}(W_e x_i^t+b_e)\)
+    \State \(h_i^t \gets \mathrm{GRUCell}(e_i^t,h_i^{t-1})\)
+    \State \(\mathcal{S} \gets \{h_i^t\}\)
+    \For{\(\ell=1\) to \(L\)}
+      \State \(a_\ell \gets \sum_{s_j\in\mathcal{S}}\mathrm{softmax}_j(q_\ell^\top \mathrm{RMSNorm}(s_j)/\sqrt{d})s_j\)
+      \State \(u_\ell \gets \mathrm{Dropout}(F_\ell(a_\ell))\)
+      \State \(\mathcal{S} \gets \mathcal{S} \cup \{u_\ell\}\)
+      \State \(z_\ell \gets a_\ell+u_\ell\)
+    \EndFor
+    \State \(Q_i^t \gets W_q z_L+b_q\)
+    \State \Return \(Q_i^t, h_i^t\)
+  \end{algorithmic}
+\end{algorithm}
+
+\subsection{方法差异总结}
+
+\begin{table}[H]
+  \centering
+  \caption{模型变体与实验目的}
+  \label{tab:variants}
+  \begin{tabularx}{\linewidth}{l l X l l}
+    \toprule
+    变体 & 基线算法 & Agent 修改 & 层数 & 目的 \\
+    \midrule
+    \code{qmix} & QMIX & 原始 RNN agent & - & baseline \\
+    \code{qmix\_attnres} & QMIX & GRU 后接 Full AttnRes & 4 & 重型直接迁移 \\
+    \code{qmix\_attnres\_l2} & QMIX & GRU 后接 Full AttnRes & 2 & 轻量化迁移 \\
+    \code{qmix\_attnres\_block} & QMIX & GRU 后接 Block AttnRes & 4 & block-wise 迁移 \\
+    \code{qmix\_depth\_mlp} & QMIX & GRU 后接 residual MLP stack & 4 & depth-only control \\
+    \code{iql\_attnres\_l2} & IQL & GRU 后接轻量 AttnRes & 2 & 跨算法验证 \\
+    \code{vdn\_attnres\_l2} & VDN & GRU 后接轻量 AttnRes & 2 & 跨算法验证 \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+本文所有变体均保持训练流程、环境设置和后端 MARL 算法尽量一致。
+因此，实验结果主要反映 GRU 后处理模块对学习稳定性、样本效率和训练成本的影响。

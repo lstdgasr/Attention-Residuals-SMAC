@@ -1,0 +1,62 @@
+\section{实验结果与分析}
+
+\subsection{QMIX 主实验结果}
+
+\input{tables/qmix_main_results}
+
+从 \code{5m\_vs\_6m} 结果看，原始 QMIX 的 final win rate 为 0.6250。
+重型 \code{qmix\_attnres} 和 \code{qmix\_attnres\_block} 的 final win rate 分别为 0.5417 和 0.5000，未能稳定超过 baseline。
+\code{qmix\_attnres\_l2} 的 best win rate 和 win-rate AUC 分别达到 0.8021 和 0.4493，高于 QMIX 的 0.7813 和 0.3926，但 final win rate 为 0.6042，仍略低于 QMIX。
+
+从 \code{3s5z} 结果看，多数方法 best win rate 均达到 1.0000，说明该地图在当前设置下区分度较弱。
+因此，\code{3s5z} 更适合作为 sanity check，而不宜作为强结论地图。
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figures/5m_vs_6m_qmix_win_curve.pdf}
+  \caption{\code{5m\_vs\_6m} 上 QMIX 主实验变体的测试胜率学习曲线。曲线为 3 个 seeds 的均值，阴影表示标准差，浅色细线表示单个 seed。}
+  \label{fig:5m-qmix-win-curve}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figures/3s5z_qmix_win_curve.pdf}
+  \caption{\code{3s5z} 上 QMIX 主实验变体的测试胜率学习曲线。曲线为 3 个 seeds 的均值，阴影表示标准差，浅色细线表示单个 seed。}
+  \label{fig:3s5z-qmix-win-curve}
+\end{figure}
+
+\subsection{Depth-only Control 分析}
+
+\code{qmix\_depth\_mlp} 在 \code{5m\_vs\_6m} 上的 final win rate 为 0.4583，低于 QMIX。
+这说明单纯增加后处理网络深度并不能稳定带来收益。
+该对照支持本文的分析重点：当前问题不是“网络加深一定有效”，而是需要判断选择性聚合机制是否真正适配 MARL agent。
+
+\subsection{跨算法轻量 AttnRes-L2 验证}
+
+\input{tables/cross_algorithm_results}
+
+跨算法结果显示，AttnRes-L2 在 IQL、VDN 和 QMIX 三类 baseline 上均提高了平均 win-rate AUC，分别提升 0.0455、0.0577 和 0.0567。
+这说明轻量化选择性聚合在学习过程中具有一定正向信号。
+但是，final win rate 的表现并不一致：IQL 和 VDN 的平均 final win 分别提升 0.0833 和 0.0625，而 QMIX 的平均 final win 下降 0.0208。
+从 paired seeds 看，VDN 的 final win 只在 1/3 seeds 上优于 baseline，AUC 在 2/3 seeds 上优于 baseline，因此更适合解释为 mixed or unstable，而不是稳定改进。
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figures/5m_vs_6m_cross_algorithm_win_curve.pdf}
+  \caption{\code{5m\_vs\_6m} 上轻量 AttnRes-L2 的跨算法测试胜率曲线。曲线为 3 个 seeds 的均值，阴影表示标准差；图中包含 IQL、VDN、QMIX 及其 AttnRes-L2 变体。}
+  \label{fig:cross-algorithm-win-curve}
+\end{figure}
+
+\subsection{训练效率分析}
+
+训练时间显示，heavy variants 的成本显著高于 baseline。
+在 \code{5m\_vs\_6m} 上，QMIX 平均训练时间约为 6.59 小时，而 \code{qmix\_attnres} 和 \code{qmix\_attnres\_block} 分别约为 15.14 小时和 13.97 小时。
+\code{qmix\_attnres\_l2} 的成本约为 8.29 小时，明显低于重型版本，但仍高于 baseline。
+在跨算法验证中，VDN+AttnRes-L2 的平均训练时间约为 VDN baseline 的 1.43 倍，进一步说明轻量化版本虽然比重型 AttnRes 更可控，但仍带来额外训练成本。
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.82\linewidth]{figures/5m_vs_6m_wall_time_bar.pdf}
+  \caption{\code{5m\_vs\_6m} 上各 QMIX 变体的平均训练墙钟时间。}
+  \label{fig:wall-time-bar}
+\end{figure}

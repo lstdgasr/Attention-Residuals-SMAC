@@ -1,0 +1,18 @@
+\section{结论与未来工作}
+
+本文研究了 Attention Residuals 从大语言模型到多智能体强化学习的迁移适配性。
+实验结果表明，重型 Full/Block AttnRes 直接插入浅层 recurrent MARL agent 后并不能稳定提升性能，并且显著增加训练时间。
+轻量化 AttnRes-L2 在部分指标上显示出 AUC 和 best-win 信号，尤其在 IQL 跨算法验证中更明显，但该收益尚未稳定转化为 QMIX final win rate。
+
+因此，当前结果不支持“Attention Residuals 可以直接作为浅层 MARL agent 后处理模块稳定提升性能”的强结论。
+更合理的后续方向是将 selective attention 思想迁移到 agent-wise communication 中，用于建模智能体间协同关系。
+
+未来工作包括：
+
+\begin{itemize}
+  \item 在更多地图上扩展 VDN 与 IQL 的跨算法验证。
+  \item 在更多 SMAC 地图上验证不同复杂度任务中的迁移表现。
+  \item 实现 AttnComm-QMIX 或 Residual Communication QMIX。
+  \item 分析 attention weights 与 agent coordination 的关系。
+  \item 增加 mean/std、paired seed delta 和统计显著性分析。
+\end{itemize}

@@ -1,0 +1,101 @@
+\section{相关工作}
+
+\subsection{多智能体强化学习与价值分解}
+
+多智能体强化学习关注多个智能体在共享环境中通过交互学习策略的问题。
+在完全协作任务中，所有智能体通常共享同一个团队回报，但每个智能体只能基于自身局部观测进行动作选择。
+这种设定会带来两个核心困难：一方面，单个智能体无法直接观测完整环境状态；另一方面，团队回报难以明确分配给每个智能体的局部动作。
+因此，如何在训练阶段利用更多全局信息，同时在执行阶段保持分散决策，是协同 MARL 方法长期关注的问题。
+\todo{补充 MARL 与 CTDE 综述类引用。}
+
+集中训练、分散执行（CTDE）为这一问题提供了常用范式。
+在训练阶段，算法可以使用全局状态、联合动作或其他智能体信息来估计价值函数；在执行阶段，每个智能体仍只使用局部观测独立决策。
+价值分解方法是 CTDE 中的重要路线，其基本思想是学习个体 action-value，并通过某种分解或混合方式得到联合 action-value。
+这种方式兼顾了分散执行的需求和集中训练的稳定性，因此成为 SMAC 等协同控制任务中的常用基线。
+
+IQL、VDN 和 QMIX 是本文涉及的三类代表性方法。
+IQL 将多智能体问题拆分为多个独立 Q-learning 问题，结构简单，能够作为判断新 agent 结构是否具有泛化信号的基础对照。
+VDN 假设联合价值函数可以表示为个体价值函数之和，从而实现简单而可解释的价值分解。
+QMIX 在 VDN 的基础上引入单调 mixing network，允许联合价值函数以更灵活的方式依赖全局状态，同时保持个体 greedy action 与联合 greedy action 的一致性。
+\todo{补充 IQL、VDN、QMIX 的正式引用。}
+
+本文选择这些方法并不是为了提出一个新的价值分解框架，而是为了隔离分析 agent 侧结构迁移的影响。
+具体而言，本文保持 learner、mixer、探索策略和训练流程尽量不变，只在 recurrent agent 的 hidden representation 后接入 Attention Residuals 或 depth-only control。
+这种设计使实验更聚焦于一个问题：源自 LLM 的 residual attention 结构是否适合作为浅层 MARL agent 的表征后处理模块。
+
+\subsection{SMAC 与协同控制任务}
+
+SMAC（StarCraft Multi-Agent Challenge）是评估协同 MARL 算法的经典实验环境。
+该环境将星际争霸 II 中的单位微操任务抽象为多智能体控制问题，每个智能体控制一个己方单位，并在局部观测条件下选择移动、攻击、停止等离散动作。
+由于智能体无法直接获得完整敌我状态，且每个单位的动作会影响团队整体战斗结果，SMAC 能够较好地反映部分可观测、协同决策和信用分配等问题。
+\todo{补充 SMAC 官方论文引用。}
+
+与许多单智能体控制任务相比，SMAC 的难点不仅在于学习有效的动作价值估计，还在于不同智能体之间需要形成隐式协作。
+例如，在数量劣势地图中，智能体需要学会集火、拉扯和避免无效攻击；在异质单位地图中，不同单位类型的攻击范围、生命值和移动能力不同，策略需要体现角色分工。
+因此，SMAC 不仅适合比较最终胜率，也适合观察不同算法在学习速度、seed 方差和训练稳定性方面的差异。
+
+本文选择 \code{5m\_vs\_6m} 和 \code{3s5z} 作为主要分析地图。
+\code{5m\_vs\_6m} 是同质 Marine 对抗地图，敌方比己方多一个单位，因此对集中火力、局部走位和探索路径较敏感，适合作为区分不同结构适配性的主要诊断任务。
+\code{3s5z} 包含不同类型单位，更能体现异质 agent 协同，但在本文实验设置下多数方法接近较高胜率，因此更适合作为辅助 sanity check，而不是单独支撑强结论的地图。
+\todo{确认 \code{3s5z} 的官方单位组成和 difficulty 标签。}
+
+\subsection{注意力机制在 MARL 中的应用}
+
+注意力机制已经被广泛用于建模序列、集合和图结构中的选择性信息聚合。
+在 MARL 场景中，attention 的一个自然用途是建模智能体之间的交互关系。
+由于每个智能体的决策通常只依赖局部观测，若能够通过 attention 从其他智能体的状态、隐藏表示或消息中选择有用信息，就可能缓解部分可观测条件下的协同困难。
+\todo{补充 attention communication MARL 相关引用。}
+
+已有 MARL attention 方法通常关注 agent-wise interaction 或 communication。
+这类方法可以让每个智能体根据自身 hidden state 对其他智能体表示进行加权聚合，从而形成与当前决策相关的通信消息。
+也有工作将智能体视为图节点，使用 graph attention 或 transformer-style encoder 建模智能体间关系。
+这些方法的共同点是将 attention 用于跨智能体信息选择，其目标直接对应 MARL 中的协同与交互问题。
+\todo{补充 graph attention MARL 和 transformer-based MARL 相关引用。}
+
+本文当前方法与上述工作存在重要差异。
+本文并未直接在智能体之间引入通信 attention，而是首先尝试将 LLM 中的 Attention Residuals 迁移为 agent 内部的 depth-wise residual aggregation 模块。
+换言之，本文当前关注的是“跨层表示选择”能否作为 recurrent agent 的后处理增强，而不是“跨智能体消息选择”。
+这种差异也是本文讨论部分的重要结论来源：如果实验表明 depth-wise transfer 不稳定，那么更符合 MARL 任务瓶颈的后续方向可能是 agent-wise attention communication。
+
+\subsection{残差连接与深层网络信息流}
+
+残差连接最初被用于缓解深层神经网络训练困难，使网络可以通过恒等映射更稳定地传播梯度和表示。
+在 Transformer 架构中，残差连接进一步成为层间信息流的核心通道。
+对于深层模型而言，残差流不仅承担优化上的作用，也承担表示组合的作用：后续层在前序层表示基础上持续更新特征，并通过多层堆叠形成更复杂的语义抽象。
+\todo{补充 ResNet 和 Transformer 的正式引用。}
+
+随着语言模型深度增加，固定 residual accumulation 也可能带来新的问题。
+如果每一层都将自身输出写入同一 residual stream，后续层接收到的表示会包含大量历史信息，而这些信息对当前计算并不总是同等重要。
+这种现象可以被理解为 residual stream 中的信息稀释或无选择累积。
+因此，如何让模型在深层网络中更有选择地利用前层表示，成为改进 LLM 架构的一类重要问题。
+\todo{补充 PreNorm Transformer 与 residual stream analysis 相关引用。}
+
+Attention Residuals 针对上述问题提出了基于 attention 的 depth-wise selection。
+其基本思想是让后续层不再被动接收固定累加的 residual，而是通过可学习 query 对不同 depth source 进行加权选择。
+这种设计与 Dense connection、skip connection、cross-layer aggregation 等思想在目标上相关，都是为了改善深层网络中的信息流动。
+不同之处在于，Attention Residuals 强调使用 attention 机制进行动态选择，而不是预先固定跨层连接方式。
+\todo{补充 Attention Residuals 原论文与相关跨层聚合文献。}
+
+本文借鉴的是 Attention Residuals 中“选择性聚合”的结构思想。
+然而，本文并不直接假设该机制在 MARL 中会产生与 LLM 相同的收益。
+由于 PyMARL agent 通常较浅，depth-wise residual dilution 可能并不是主要瓶颈，因此本文需要通过 full、lightweight、block 和 depth-only control 等变体实验来判断这一结构思想是否适配。
+
+\subsection{LLM 结构向强化学习迁移}
+
+近年来，Transformer 和大模型结构逐渐被引入强化学习。
+一类工作将轨迹建模为序列，并使用 Transformer 进行行为建模或决策生成；另一类工作则尝试将 attention、残差连接、归一化和大模型训练经验迁移到策略网络或价值网络中。
+这些工作说明，LLM 或 Transformer 中的结构经验可能为强化学习提供新的模型设计启发。
+\todo{补充 Decision Transformer、Transformer RL 和 LLM-inspired RL architecture 相关引用。}
+
+不过，结构迁移并不等价于直接复用模块。
+强化学习训练目标通常具有非平稳、bootstrapping 和探索分布变化等特点，价值学习中的误差传播也可能使额外网络结构带来更高方差。
+在 MARL 中，这些问题还会与多智能体非平稳性和信用分配进一步叠加。
+因此，一个在监督式语言建模中有效的结构，并不必然能在 MARL 中以相同方式发挥作用。
+
+本文与已有 LLM-to-RL 迁移工作的区别在于，本文重点不是提出一个追求最优性能的新 MARL 算法，而是研究一个具体结构思想的适配边界。
+Attention Residuals 的原始动机来自深层 LLM 的 residual stream，而本文实验对象是浅层 recurrent MARL agent。
+这种结构和任务之间的差异，使得本文更关注“迁移是否合理、在哪些设置下有信号、何时应止损”。
+
+从这一角度看，本文的实验结果即使不是单纯正向，也具有分析价值。
+如果重型 depth-wise AttnRes 直接迁移表现不稳定，而轻量化版本只在部分指标上有有限信号，那么结论不应被表述为算法失败，而应被理解为结构迁移中的适配性证据。
+这也为后续将 selective attention 重新放置到 agent communication 维度提供了理论和实验动机。

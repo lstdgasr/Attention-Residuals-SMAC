@@ -1,0 +1,15 @@
+\begin{table}[H]
+  \centering
+  \caption{跨算法轻量 AttnRes-L2 对照结果}
+  \label{tab:cross-algorithm-results}
+  \resizebox{\linewidth}{!}{
+  \begin{tabular}{lllrrrrl}
+    \toprule
+    地图 & Baseline & Candidate & Paired Seeds & $\Delta$ Final Win & $\Delta$ Best Win & $\Delta$ AUC & 解释 \\
+    \midrule
+    \code{5m\_vs\_6m} & \code{iql} & \code{iql\_attnres\_l2} & 3 & +0.0833 & +0.1458 & +0.0455 & lightweight transfer 有正向信号 \\
+    \code{5m\_vs\_6m} & \code{vdn} & \code{vdn\_attnres\_l2} & 3 & +0.0625 & +0.0104 & +0.0577 & AUC 提升但 seed 表现混合 \\
+    \code{5m\_vs\_6m} & \code{qmix} & \code{qmix\_attnres\_l2} & 3 & -0.0208 & +0.0208 & +0.0567 & mixed or unstable \\
+    \bottomrule
+  \end{tabular}}
+\end{table}

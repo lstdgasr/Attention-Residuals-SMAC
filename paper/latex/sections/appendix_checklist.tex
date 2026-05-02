@@ -1,0 +1,35 @@
+\section{图表与材料清单}
+
+\subsection{已生成图表}
+
+\begin{itemize}
+  \item \code{5m\_vs\_6m} QMIX variants win-rate learning curves。
+  \item \code{3s5z} QMIX variants win-rate learning curves。
+  \item \code{5m\_vs\_6m} IQL/VDN/QMIX cross-algorithm AttnRes-L2 learning curves。
+  \item \code{5m\_vs\_6m} QMIX variants training wall-clock bar chart。
+  \item PyMARL/QMIX 训练框架图。
+  \item 原始 RNN agent、AttnRes-RNN agent、depth-only control 结构图。
+\end{itemize}
+
+\subsection{当前实验完整性}
+
+当前预设实验中，QMIX 主线和 \code{5m\_vs\_6m} 跨算法验证均已补齐 3 个 seeds。
+VDN baseline 新增 run 为：
+
+\begin{itemize}
+  \item \code{5m\_vs\_6m vdn seed1}: Sacred run 100。
+  \item \code{5m\_vs\_6m vdn seed2}: Sacred run 101。
+  \item \code{5m\_vs\_6m vdn seed3}: Sacred run 102。
+\end{itemize}
+
+重新汇总后，\code{marl\_transfer\_missing\_or\_partial.csv} 中无预设缺失项。
+
+\subsection{参考文献待补方向}
+
+\begin{itemize}
+  \item MARL 与 value decomposition：IQL、VDN、QMIX、CTDE。
+  \item SMAC benchmark。
+  \item Attention in MARL：communication、graph attention、transformer-based MARL。
+  \item Residual 与 Transformer：ResNet、Transformer、PreNorm、Attention Residuals。
+  \item RL stability：Deep Q-learning、off-policy value learning、recurrent agents in partial observability。
+\end{itemize}

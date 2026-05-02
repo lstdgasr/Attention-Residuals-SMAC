@@ -1,0 +1,31 @@
+# --- QMIX + depth-only MLP control agent parameters ---
+
+# use epsilon greedy action selector
+action_selector: "epsilon_greedy"
+epsilon_start: 1.0
+epsilon_finish: 0.05
+epsilon_anneal_time: 50000
+
+runner: "episode"
+
+buffer_size: 5000
+
+# update the target network every {} episodes
+target_update_interval: 200
+
+# use the Q_Learner to train
+agent_output_type: "q"
+agent: "depth_mlp_rnn"
+learner: "q_learner"
+double_q: True
+mixer: "qmix"
+mixing_embed_dim: 32
+hypernet_layers: 2
+hypernet_embed: 64
+
+# Match the default qmix_attnres depth while removing depth attention.
+depth_mlp_layers: 4
+depth_mlp_hidden_dim: 64
+depth_mlp_dropout: 0.0
+
+name: "qmix_depth_mlp"

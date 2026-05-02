@@ -1,0 +1,47 @@
+\section{实验设置}
+
+\subsection{训练配置}
+
+实验基于 PyMARL 和 SMAC。
+所有主实验均训练到相同的 \code{t\_max=2050000}，测试时使用 \code{test\_nepisode=32}，并在 seed 1、2、3 上重复。
+
+\begin{table}[H]
+  \centering
+  \caption{主要训练超参数}
+  \label{tab:hyperparams}
+  \begin{tabularx}{0.82\linewidth}{l l X}
+    \toprule
+    超参数 & 取值 & 说明 \\
+    \midrule
+    \code{lr} & 0.0005 & 学习率 \\
+    \code{batch\_size} & 32 & replay batch size \\
+    \code{buffer\_size} & 5000 & episode replay buffer \\
+    \code{epsilon\_start} & 1.0 & 初始探索率 \\
+    \code{epsilon\_finish} & 0.05 & 最终探索率 \\
+    \code{epsilon\_anneal\_time} & 50000 & epsilon 衰减步数 \\
+    \code{target\_update\_interval} & 200 & target network 更新间隔 \\
+    \code{mixing\_embed\_dim} & 32 & QMIX mixer hidden size \\
+    \code{hypernet\_layers} & 2 & QMIX hypernetwork 层数 \\
+    \code{hypernet\_embed} & 64 & QMIX hypernetwork hidden size \\
+    \code{t\_max} & 2050000 & 训练步数上限 \\
+    \code{test\_nepisode} & 32 & 每次测试 episode 数 \\
+    \code{seeds} & 1,2,3 & 重复实验随机种子 \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\subsection{实验分组}
+
+QMIX 主线在 \code{5m\_vs\_6m} 和 \code{3s5z} 两张地图上比较五种变体。
+跨算法验证在 \code{5m\_vs\_6m} 上比较 lightweight AttnRes-L2 与对应 baseline。
+
+\begin{itemize}
+  \item 主线：QMIX baseline、Full AttnRes、AttnRes-L2、Block AttnRes 与 depth-only control。
+  \item 跨算法：IQL、VDN、QMIX baseline 与对应 AttnRes-L2 变体。
+  \item 当前所有预设 paired comparison 均已补齐 3 个 seeds；VDN baseline 使用本地同步后的 Sacred run 100、101、102。
+\end{itemize}
+
+\subsection{日志与统计}
+
+训练日志来自 Sacred 输出，汇总文件位于 \code{pymarl-results/diagnostics}。
+本文使用 paired seed 方式比较同一算法 baseline 与 AttnRes-L2 candidate 的差异，并报告 final win、best win、win-rate AUC 和 wall-clock time。

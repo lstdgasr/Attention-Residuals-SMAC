@@ -1,0 +1,49 @@
+\section{讨论}
+
+\subsection{直接迁移不稳定的原因}
+
+Attention Residuals 的原始目标是改善深层 LLM 中的 residual stream 信息选择。
+而 PyMARL 中的 recurrent agent 较浅，主要瓶颈并不是跨层 residual dilution。
+SMAC 中更关键的问题是多智能体协同、局部观测、探索路径和信用分配。
+因此，将 AttnRes 作为 GRU hidden 的后处理模块可能存在结构错位。
+
+\subsection{轻量化信号与局限}
+
+AttnRes-L2 在 \code{5m\_vs\_6m} 的 AUC 和 best win 上有一定信号，在 IQL 上也显示出正向均值提升。
+但这些收益没有稳定转化为 QMIX final win rate。
+因此，当前结果更适合表述为“轻量化结构有潜力”，而不是“AttnRes 是稳定强算法”。
+
+\subsection{后续方向：Agent-wise Attention Communication}
+
+根据当前结果与师兄建议，下一阶段不应继续将 Kimi/AttnRes 模块硬塞到 GRU 后面，而应将 attention 用于智能体间通信。
+可考虑如下结构：
+
+\begin{equation}
+  [h_1, h_2, \ldots, h_n]
+  \rightarrow \mathrm{AgentWiseAttention}
+  \rightarrow \mathrm{GatedResidualFusion}
+  \rightarrow Q_i.
+\end{equation}
+
+该方向将 LLM 中“选择性聚合”的思想从 depth dimension 转移到 agent dimension，更符合 MARL 中跨智能体协同的任务瓶颈。
+
+\begin{figure}[H]
+  \centering
+  \fbox{\parbox{0.86\linewidth}{
+    \centering
+    TODO: 绘制 Direct depth transfer 与 Agent-wise communication transfer 的概念对比图。
+  }}
+  \caption{从 depth-wise residual transfer 到 agent-wise communication transfer}
+  \label{fig:attncomm}
+\end{figure}
+
+\subsection{方法局限}
+
+当前研究仍存在以下局限：
+
+\begin{itemize}
+  \item seed 数量较少，统计显著性有限。
+  \item VDN baseline 已补齐，但跨算法验证仍仅覆盖 \code{5m\_vs\_6m} 一张地图。
+  \item 学习曲线图和 attention weight 分析尚未生成。
+  \item 当前方法只修改 agent 侧，尚未探索 mixer 或 communication 结构。
+\end{itemize}

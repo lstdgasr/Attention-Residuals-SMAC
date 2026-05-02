@@ -1,0 +1,76 @@
+\section{引言}
+
+\subsection{研究背景}
+
+多智能体强化学习（multi-agent reinforcement learning, MARL）研究多个智能体在共享环境中通过交互学习协同行为的问题。
+与单智能体强化学习相比，MARL 需要同时面对环境动态变化、智能体间策略相互影响以及局部观测条件下的协同决策。
+在许多实际协同控制任务中，每个智能体只能获得自身附近的局部信息，却需要通过个体动作共同优化全局目标。
+这种设定使得 MARL 不仅需要解决传统强化学习中的探索与长期回报估计问题，还需要处理智能体间的协调、信用分配以及非平稳训练目标等挑战。
+\todo{补充 MARL、CTDE 和多智能体信用分配相关引用。}
+
+集中训练、分散执行（centralized training with decentralized execution, CTDE）是协同 MARL 中常用的训练范式。
+在该范式下，训练阶段可以利用全局状态或联合经验来稳定学习，而执行阶段每个智能体仍只依赖自身局部观测进行动作选择。
+基于价值分解的方法是 CTDE 框架中的重要分支，其中 VDN 将联合动作价值函数表示为个体价值函数的加和，QMIX 进一步使用满足单调性约束的 mixing network 提升联合价值函数的表达能力。
+IQL 则将多智能体问题拆分为多个独立 Q-learning 问题，虽然结构简单，但仍是评估新结构时常用的基础对照。
+\todo{补充 IQL、VDN、QMIX 的正式引用。}
+
+SMAC（StarCraft Multi-Agent Challenge）是评估协同 MARL 算法的经典 benchmark。
+在 SMAC 中，每个智能体控制一个星际争霸 II 单位，并基于局部观测完成移动、攻击和集火等微操动作。
+该环境能够较好地体现部分可观测、单位协同、异质智能体控制和探索路径敏感等问题，因此常被用于比较 QMIX、VDN、IQL 及其改进方法。
+本文选择 SMAC 中的 \code{5m\_vs\_6m} 和 \code{3s5z} 作为主要实验地图：前者用于观察数量劣势下的同质单位协同，后者用于补充异质单位场景下的适配性分析。
+\todo{补充 SMAC 官方论文引用，并确认地图 difficulty 标签。}
+
+\subsection{LLM 结构迁移的动机}
+
+近年来，大语言模型（large language models, LLMs）的快速发展推动了深层网络结构设计的持续演进。
+在 Transformer 架构中，残差连接为深层模型提供了稳定的信息通道，使得模型可以在多层堆叠中保留和组合不同层次的表示。
+然而，当网络深度不断增加时，固定形式的 residual accumulation 也可能带来信息混合和表示稀释问题：后续层接收到的是大量历史表示的累积结果，而这些历史表示并非总是对当前层同等重要。
+
+Attention Residuals 针对这一问题提出了一种基于注意力的跨层信息选择机制。
+其核心思想是，不再将残差流简单视为固定累加项，而是允许模型在 depth dimension 上对不同历史表示进行可学习的选择和聚合。
+对于深层语言模型而言，这种机制有助于缓解 residual stream dilution，并增强模型对前层有用信息的选择能力。
+\todo{补充 Attention Residuals 原论文及 residual stream analysis 相关引用。}
+
+这一结构思想具有一定的迁移吸引力。
+MARL 中的 recurrent agent 同样需要在有限表示维度中编码历史观测、局部状态和动作价值信息。
+如果 depth-wise selective aggregation 能够改善 agent hidden representation，那么它可能为经典 PyMARL agent 提供一种低侵入式结构增强方式。
+基于这一动机，本文尝试将 Attention Residuals 接入 RNN agent 的 hidden state 与 Q head 之间，在保持 QMIX、IQL、VDN 等算法主体不变的前提下，研究该结构是否能够迁移到 SMAC 多智能体强化学习任务中。
+
+\subsection{迁移适配性问题}
+
+尽管 Attention Residuals 在 LLM 中具有明确的结构动机，但直接迁移到 MARL 并不必然有效。
+LLM 与经典 PyMARL agent 在网络深度、训练目标和任务瓶颈上均存在显著差异。
+LLM 通常由大量 Transformer blocks 堆叠而成，residual stream 是跨层信息传递的主要通道；而 PyMARL 中常用的 RNN agent 结构较浅，通常可以概括为 \code{fc1 -> GRUCell -> fc2}。
+因此，LLM 中的深层 residual dilution 问题并不会以相同形式出现在浅层 recurrent MARL agent 中。
+
+另一方面，SMAC 任务的核心难点更多来自多智能体决策本身。
+每个智能体只能基于局部观测行动，训练过程中还需要在非平稳的联合策略空间中学习稳定的价值估计。
+对于 QMIX 等价值分解方法而言，个体价值函数和全局价值函数之间的关系、探索过程中产生的轨迹分布以及不同智能体之间的隐式协同，往往比单个 agent 内部的网络深度更关键。
+在这种背景下，将 LLM 中用于深层残差信息选择的模块直接放在 GRU hidden state 后面，可能会引入额外参数和训练方差，却未必能作用于 MARL 的主要瓶颈。
+
+因此，本文将 Attention Residuals 到 MARL 的迁移视为一个适配性分析问题，而不是预设其必然带来性能提升。
+具体而言，本文关注两类结构错位：第一，原始 Attention Residuals 面向深层 Transformer residual stream，而本文所用 PyMARL agent 是浅层 recurrent network；第二，LLM 中 attention residual 强调跨层信息选择，而 SMAC 中更自然的 attention 使用场景可能是智能体间通信和交互建模。
+这种区分对于理解实验结果十分重要，也为后续从 depth-wise residual transfer 转向 agent-wise attention communication 提供了动机。
+
+\subsection{研究问题与贡献}
+
+围绕上述迁移动机和结构错位，本文主要回答以下三个研究问题。
+
+第一，直接将 Attention Residuals 插入 \code{GRU hidden -> Q head} 之间，是否能够在 SMAC 任务中稳定提升学习效果？
+为回答该问题，本文在 QMIX 上构建 Full AttnRes 和 Block AttnRes 两种重型直接迁移版本，并在 \code{5m\_vs\_6m} 与 \code{3s5z} 上进行多 seed 对比。
+
+第二，轻量化 Attention Residuals 是否比重型结构更适合浅层 recurrent agent？
+考虑到 PyMARL agent 的网络深度和表示维度较小，本文进一步设计 AttnRes-L2 轻量化变体，用于观察降低结构复杂度后是否能够获得更稳定的学习信号。
+
+第三，性能变化是否仅仅来自额外网络深度？
+为避免将“网络变深”误判为 Attention Residuals 的作用，本文加入 depth-only control，即只增加 residual MLP stack，而不使用 attention、learnable query 或 depth-wise selection。
+该对照有助于区分选择性聚合机制与单纯增加参数量之间的影响。
+
+本文的贡献可以概括为三点。
+首先，本文在 PyMARL 框架中实现了 Attention Residuals 到 recurrent MARL agent 的迁移，并保持 QMIX、IQL 和 VDN 等算法主体不变，从而使实验聚焦于 agent 侧结构适配问题。
+其次，本文系统比较 Full、Lightweight、Block 和 depth-only control 多类变体，在 \code{5m\_vs\_6m} 与 \code{3s5z} 上分析其 final win rate、best win rate、AUC 和训练时间。
+已有结果表明，重型 Full/Block AttnRes 直接迁移并不稳定且成本较高，Lightweight AttnRes-L2 在部分 AUC 和 best-win 指标上显示出有限信号，但尚不能支持稳定优于 baseline 的强结论。
+最后，本文基于实验现象讨论 LLM 结构与 MARL 任务瓶颈之间的错位，并提出将 selective attention 从 depth-wise residual transfer 转向 agent-wise communication 的后续研究方向。
+
+需要强调的是，本文并不主张当前 AttnRes-RNN 是一个优于 QMIX 的强算法。
+相反，本文的目标是通过系统实验说明：直接迁移 LLM 中用于深层残差信息流的结构到浅层 MARL agent 时，需要谨慎分析其适配性、训练成本和任务瓶颈是否匹配。

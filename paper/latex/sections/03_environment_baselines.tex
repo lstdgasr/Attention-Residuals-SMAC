@@ -1,0 +1,194 @@
+\section{实验环境与基线方法}
+
+\subsection{SMAC 环境与 MARL 问题定义}
+
+本文实验基于 SMAC 环境。
+每个 agent 控制一个己方单位，根据局部观测选择离散动作，包括移动、停止和攻击敌方单位等。
+训练过程中使用 PyMARL 默认的 shaped reward，并在测试阶段统计 battle won rate。
+
+从多智能体强化学习角度看，SMAC 可以形式化为一个 Dec-POMDP：
+\begin{equation}
+  \mathcal{G} =
+  \langle \mathcal{S}, \mathcal{U}, P, r, \mathcal{Z}, O, n, \gamma \rangle ,
+\end{equation}
+其中 \(\mathcal{S}\) 表示全局状态空间，\(\mathcal{U}\) 表示单个智能体动作空间，\(n\) 为智能体数量，\(P\) 为状态转移函数，\(r\) 为团队共享奖励，\(\mathcal{Z}\) 为局部观测空间，\(O\) 为观测函数，\(\gamma\) 为折扣因子。
+在时刻 \(t\)，第 \(i\) 个智能体获得局部观测 \(o_i^t \in \mathcal{Z}\)，根据自身历史轨迹 \(\tau_i^t\) 选择动作 \(u_i^t \in \mathcal{U}\)。
+联合动作记为 \(\mathbf{u}^t=(u_1^t,\ldots,u_n^t)\)，团队目标是最大化折扣回报：
+\begin{equation}
+  J(\pi)=
+  \mathbb{E}_{\pi}
+  \left[
+    \sum_{t=0}^{\infty} \gamma^t r_t
+  \right],
+\end{equation}
+其中分散执行策略通常写为
+\begin{equation}
+  \pi(\mathbf{u}^t \mid \boldsymbol{\tau}^t)
+  =
+  \prod_{i=1}^{n}
+  \pi_i(u_i^t \mid \tau_i^t).
+\end{equation}
+
+\begin{table}[H]
+  \centering
+  \caption{实验地图信息}
+  \label{tab:maps}
+  \begin{tabularx}{\linewidth}{llllX}
+    \toprule
+    地图 & 己方单位 & 敌方单位 & 类型 & 作用 \\
+    \midrule
+    \code{5m\_vs\_6m} & 5 Marines & 6 Marines & 同质单位 & 主要诊断地图，用于测试数量劣势下的协同、集火和走位。 \\
+    \code{3s5z} & 3 Stalkers + 5 Zealots & 待确认 & 异质单位 & 辅助地图，用于测试混合单位协同；当前结果接近饱和。 \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\todo{从 SMAC map registry 或官方文档确认 \code{3s5z} 敌方单位组成和 difficulty 标签。}
+
+\subsection{Recurrent Agent 与独立价值学习}
+
+PyMARL 中常用的 agent 是一个共享参数的 recurrent Q-network。
+对第 \(i\) 个智能体，输入 \(x_i^t\) 通常由局部观测、上一时刻动作和 agent id 拼接得到。
+本文基线 agent 的计算过程为：
+\begin{align}
+  e_i^t &= \mathrm{ReLU}(W_e x_i^t+b_e), \\
+  h_i^t &= \mathrm{GRUCell}(e_i^t, h_i^{t-1}), \\
+  Q_i^t &= W_q h_i^t+b_q ,
+\end{align}
+其中 \(h_i^t\) 是智能体隐藏状态，\(Q_i^t \in \mathbb{R}^{|\mathcal{U}|}\) 是该智能体对所有离散动作的 action-value 输出。
+
+IQL 将每个智能体视作独立 Q-learning 问题。
+对单个智能体，TD target 可写为：
+\begin{equation}
+  y_i^t =
+  r_t + \gamma
+  \max_{u_i'}
+  Q_i^{-}(\tau_i^{t+1}, u_i'),
+\end{equation}
+对应 TD loss 为：
+\begin{equation}
+  \mathcal{L}_{\mathrm{IQL}}(\theta)
+  =
+  \mathbb{E}
+  \left[
+    \left(
+      y_i^t - Q_i(\tau_i^t,u_i^t;\theta)
+    \right)^2
+  \right].
+\end{equation}
+由于 IQL 不显式建模联合动作价值函数，它结构简单，但容易受到多智能体非平稳性影响。
+
+\subsection{VDN 与 QMIX 价值分解}
+
+VDN 假设联合动作价值函数可以由个体动作价值函数加和得到：
+\begin{equation}
+  Q_{\mathrm{tot}}(\boldsymbol{\tau},\mathbf{u})
+  =
+  \sum_{i=1}^{n} Q_i(\tau_i,u_i).
+\end{equation}
+该形式简单且便于分散执行，但表达能力受限，因为所有智能体对联合价值的贡献被限制为线性相加。
+
+QMIX 使用 mixing network 将个体 \(Q_i\) 混合为联合动作价值：
+\begin{equation}
+  Q_{\mathrm{tot}}(\boldsymbol{\tau},\mathbf{u},s)
+  =
+  f_{\mathrm{mix}}
+  \left(
+    Q_1(\tau_1,u_1),\ldots,Q_n(\tau_n,u_n),s
+  \right),
+\end{equation}
+并要求满足单调性约束：
+\begin{equation}
+  \frac{\partial Q_{\mathrm{tot}}}{\partial Q_i} \ge 0,
+  \quad
+  \forall i \in \{1,\ldots,n\}.
+\end{equation}
+该约束保证联合 greedy action 可以通过每个智能体局部 greedy action 得到，从而兼顾集中训练和分散执行。
+
+对 VDN 和 QMIX，联合 TD target 可写为：
+\begin{equation}
+  y_{\mathrm{tot}}^t =
+  r_t + \gamma
+  Q_{\mathrm{tot}}^{-}
+  \left(
+    \boldsymbol{\tau}^{t+1},
+    \mathbf{u}^{*},
+    s^{t+1}
+  \right),
+\end{equation}
+其中 \(\mathbf{u}^{*}\) 由 target agent 或 double Q-learning 选择。
+训练目标为：
+\begin{equation}
+  \mathcal{L}_{\mathrm{TD}}(\theta)
+  =
+  \mathbb{E}
+  \left[
+    \left(
+      y_{\mathrm{tot}}^t -
+      Q_{\mathrm{tot}}(\boldsymbol{\tau}^{t},\mathbf{u}^{t},s^{t};\theta)
+    \right)^2
+  \right].
+\end{equation}
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[
+    node distance=0.9cm and 0.95cm,
+    box/.style={draw, rounded corners, thick, minimum width=2.1cm, minimum height=0.75cm, align=center},
+    obs/.style={box, fill=orange!22, draw=orange!85!black},
+    agent/.style={box, fill=blue!16, draw=blue!75!black},
+    qval/.style={box, fill=green!18, draw=green!55!black},
+    mixer/.style={box, fill=purple!16, draw=purple!75!black, minimum width=3.0cm},
+    state/.style={box, fill=gray!15, draw=gray!70!black},
+    arr/.style={-{Latex[length=2.5mm]}, thick}
+  ]
+    \node[obs] (o1) {\(o_1^t,\tau_1^t\)};
+    \node[obs, below=of o1] (o2) {\(o_2^t,\tau_2^t\)};
+    \node[obs, below=of o2] (on) {\(o_n^t,\tau_n^t\)};
+
+    \node[agent, right=of o1] (a1) {Shared\\RNN Agent};
+    \node[agent, right=of o2] (a2) {Shared\\RNN Agent};
+    \node[agent, right=of on] (an) {Shared\\RNN Agent};
+
+    \node[qval, right=of a1] (q1) {\(Q_1\)};
+    \node[qval, right=of a2] (q2) {\(Q_2\)};
+    \node[qval, right=of an] (qn) {\(Q_n\)};
+
+    \node[mixer, right=1.25cm of q2] (mix) {VDN/QMIX\\Mixer};
+    \node[state, above=0.55cm of mix] (s) {Global state \(s^t\)\\training only};
+    \node[qval, right=of mix] (qt) {\(Q_{\mathrm{tot}}\)};
+
+    \draw[arr] (o1) -- (a1);
+    \draw[arr] (o2) -- (a2);
+    \draw[arr] (on) -- (an);
+    \draw[arr] (a1) -- (q1);
+    \draw[arr] (a2) -- (q2);
+    \draw[arr] (an) -- (qn);
+    \draw[arr] (q1) -- (mix);
+    \draw[arr] (q2) -- (mix);
+    \draw[arr] (qn) -- (mix);
+    \draw[arr] (s) -- (mix);
+    \draw[arr] (mix) -- (qt);
+  \end{tikzpicture}
+  \caption{PyMARL 中基于价值分解的训练框架示意。多个智能体共享 RNN agent 参数，输出个体动作价值，VDN/QMIX mixer 在训练阶段生成联合动作价值。}
+  \label{fig:pymarl-qmix-framework}
+\end{figure}
+
+\subsection{评价指标}
+
+本文使用以下指标评估模型性能。
+设第 \(k\) 次测试发生在训练步 \(t_k\)，测试胜率为 \(w_k\)，测试回报为 \(R_k\)。
+final test win rate 表示训练结束附近的测试胜率；best test win rate 表示训练过程中的最高测试胜率：
+\begin{equation}
+  w_{\mathrm{best}} = \max_k w_k.
+\end{equation}
+win-rate AUC 用于衡量整个训练过程中的学习质量：
+\begin{equation}
+  \mathrm{AUC}
+  =
+  \frac{1}{t_K-t_1}
+  \sum_{k=1}^{K-1}
+  \frac{w_k+w_{k+1}}{2}
+  (t_{k+1}-t_k).
+\end{equation}
+此外，本文还报告 final test return、wall-clock hours 和 paired seed delta，用于分析最终性能、训练成本和 seed 稳定性。

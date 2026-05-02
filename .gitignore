@@ -1,0 +1,51 @@
+# StarCraft II and external assets
+3rdparty/
+
+# Training outputs, Sacred logs, checkpoints, and local result syncs
+results/
+pymarl-results/
+**/models/
+**/model/
+**/checkpoints/
+**/*.pt
+**/*.pth
+**/*.ckpt
+**/*.SC2Replay
+
+# Python caches and test caches
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environments
+.venv/
+venv/
+env/
+*.conda
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# LaTeX build outputs
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.out
+*.synctex.gz
+*.toc
+*.xdv
+paper/latex/main.pdf
+
+# OS/editor noise
+.DS_Store
+Thumbs.db

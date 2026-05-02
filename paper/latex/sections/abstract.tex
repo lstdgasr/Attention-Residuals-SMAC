@@ -1,0 +1,7 @@
+本文研究 Attention Residuals 从大语言模型结构到多智能体强化学习中的迁移适配性问题。
+Attention Residuals 在深层语言模型中用于缓解 residual stream 中的信息稀释，但经典 PyMARL/SMAC 中的 recurrent agent 通常较浅，直接迁移该结构是否有效仍缺乏验证。
+本文基于 PyMARL，在保持 QMIX、IQL、VDN 等算法主体不变的前提下，将 Attention Residuals 接入 RNN agent 的 hidden state 与 Q head 之间，并设计 Full、Lightweight、Block 以及 depth-only control 多种变体。
+现有实验表明，重型 Full/Block AttnRes 直接迁移到浅层 MARL agent 后表现不稳定且训练成本较高；Lightweight AttnRes-L2 在部分指标上呈现 AUC 和 best-win 信号，但 final win rate 未稳定超过 baseline。
+本文将当前结果定位为结构迁移适配性分析，而不是强算法性能主张，并进一步讨论将 selective attention 从 depth-wise residual transfer 转向 agent-wise communication 的后续研究方向。
+
+\textbf{关键词：} 多智能体强化学习；SMAC；QMIX；Attention Residuals；结构迁移；注意力机制
