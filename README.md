@@ -265,14 +265,6 @@ papers, including:
 
 Project citation placeholder:
 
-```bibtex
-@misc{attnres_smac_adaptation,
-  title  = {Attention Residuals for SMAC Multi-Agent Reinforcement Learning},
-  author = {Your Name},
-  year   = {2026},
-  note   = {Code for an empirical study of transferring Attention Residuals from LLMs to MARL agents}
-}
-```
 
 SMAC citation:
 
