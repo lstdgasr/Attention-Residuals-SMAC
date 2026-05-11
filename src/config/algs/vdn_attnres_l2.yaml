@@ -1,0 +1,32 @@
+# --- VDN + lightweight Attention Residuals agent parameters ---
+
+# use epsilon greedy action selector
+action_selector: "epsilon_greedy"
+epsilon_start: 1.0
+epsilon_finish: 0.05
+epsilon_anneal_time: 50000
+
+runner: "episode"
+
+buffer_size: 5000
+
+# update the target network every {} episodes
+target_update_interval: 200
+
+# use the Q_Learner to train
+agent_output_type: "q"
+agent: "attnres_rnn"
+learner: "q_learner"
+double_q: True
+mixer: "vdn"
+
+# Lightweight Attention Residuals ablation
+attn_res_enabled: True
+attn_res_mode: "full"
+attn_res_layers: 2
+attn_res_hidden_dim: 64
+attn_res_block_size: 0
+attn_res_dropout: 0.0
+attn_res_rms_eps: 0.00000001
+
+name: "vdn_attnres_l2"

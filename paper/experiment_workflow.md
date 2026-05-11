@@ -36,12 +36,26 @@ Skip smoke test if it already passed:
 RUN_SMOKE_TEST=0 bash scripts/run_marl_transfer_adaptation_7gpu.sh
 ```
 
+## Run Follow-Up Experiments
+
+Use this queue to add `3s5z` cross-algorithm validation, seed4/5 for the core QMIX comparisons, and attention-weight logging for `qmix_attnres_l2`:
+
+```bash
+cd /home/xhl009/MARL/pymarl
+conda activate pymarl-sc2
+export SC2PATH=/home/xhl009/MARL/pymarl/3rdparty/StarCraftII_srv
+export RESULTS_DIR=/home/xhl009/MARL/pymarl-results
+
+DRY_RUN=1 SESSION_PREFIX=followup6 bash scripts/run_marl_transfer_followup_6gpu.sh
+RUN_SMOKE_TEST=0 SESSION_PREFIX=followup6 bash scripts/run_marl_transfer_followup_6gpu.sh
+```
+
 ## Monitor
 
 ```bash
 tmux ls
 watch -n 5 nvidia-smi
-tail -f "$RESULTS_DIR/launcher_logs/5m_vs_6m_iql_attnres_l2_s1_gpu4.log"
+tail -f "$RESULTS_DIR/launcher_logs/3s5z_iql_attnres_l2_s3_gpu0.log"
 ```
 
 ## Summarize
@@ -61,17 +75,28 @@ marl_transfer_cross_algorithm_aggregate.csv
 marl_transfer_missing_or_partial.csv
 ```
 
+Generate paper figures:
+
+```bash
+python scripts/plot_marl_transfer_curves.py \
+  --sacred-dir results/sacred \
+  --output-dir paper/latex/figures
+
+python scripts/plot_attn_weight_heatmaps.py \
+  --sacred-dir results/sacred \
+  --output-dir paper/latex/figures \
+  --configs qmix_attnres_l2
+```
+
 ## Current Missing or Partial Slots
 
 From the latest local sync:
 
 ```text
-5m_vs_6m vdn seed1: missing
-5m_vs_6m vdn seed2: missing
-5m_vs_6m vdn seed3: missing
+No missing 3-seed slots in the completed 5m_vs_6m adaptation matrix.
 ```
 
-The QMIX main line is complete for `5m_vs_6m` and `3s5z`. The IQL and QMIX cross-algorithm lightweight AttnRes-L2 comparisons are complete. VDN cannot be used as a paired comparison until the missing baseline runs are added.
+The VDN baseline is complete and can be used in the `5m_vs_6m` cross-algorithm paired comparison. The follow-up queue intentionally adds expected seed4/5 slots and `3s5z` IQL/VDN cross-algorithm slots; these will appear in `marl_transfer_missing_or_partial.csv` until `scripts/run_marl_transfer_followup_6gpu.sh` finishes and summaries are regenerated.
 
 ## Interpretation Rule
 

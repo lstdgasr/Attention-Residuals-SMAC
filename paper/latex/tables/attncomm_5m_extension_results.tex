@@ -1,0 +1,16 @@
+\begin{table}[H]
+  \centering
+  \caption{\code{5m\_vs\_6m} 上 AttnComm-QMIX-L2 初步扩展结果（\(t_{\max}=5.0\)M）}
+  \label{tab:attncomm-5m-extension}
+  \resizebox{\linewidth}{!}{
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    变体 & Seeds & Final Win & Best Win & Win AUC & Wall Hours & 相对 QMIX AUC \(\Delta\) \\
+    \midrule
+    \code{qmix} & 3/3 & 0.5208 & 0.8021 & 0.4986 & 24.80 & -- \\
+    \code{qmix\_attnres\_l2} & 3/3 & 0.5833 & 0.8021 & 0.5028 & 33.00 & +0.0043 \\
+    \code{qmix\_attncomm\_l2\_other} & 3/3 & 0.6354 & 0.8542 & 0.5429 & 33.40 & +0.0444 \\
+    \code{qmix\_attncomm\_l2\_self} & 3/3 & 0.5938 & 0.8646 & 0.5207 & 33.34 & +0.0222 \\
+    \bottomrule
+  \end{tabular}}
+\end{table}

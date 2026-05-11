@@ -71,6 +71,11 @@ class BasicMAC:
     def load_models(self, path):
         self.agent.load_state_dict(th.load("{}/agent.th".format(path), map_location=lambda storage, loc: storage))
 
+    def get_and_reset_attention_weight_stats(self):
+        if hasattr(self.agent, "get_and_reset_attention_weight_stats"):
+            return self.agent.get_and_reset_attention_weight_stats()
+        return {}
+
     def _build_agents(self, input_shape):
         self.agent = agent_REGISTRY[self.args.agent](input_shape, self.args)
 

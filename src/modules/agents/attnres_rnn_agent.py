@@ -26,3 +26,6 @@ class AttnResRNNAgent(nn.Module):
         h = self.rnn(x, h_in)
         q = self.fc2(self.attn_residual(h))
         return q, h
+
+    def get_and_reset_attention_weight_stats(self):
+        return self.attn_residual.get_and_reset_attention_weight_stats()

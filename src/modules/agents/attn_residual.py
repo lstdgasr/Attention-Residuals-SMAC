@@ -38,6 +38,13 @@ class DepthwiseAttentionResidual(nn.Module):
         self.block_size = int(getattr(args, "attn_res_block_size", 0))
         self.dropout_p = float(getattr(args, "attn_res_dropout", 0.0))
         self.rms_eps = float(getattr(args, "attn_res_rms_eps", 1e-8))
+        self.record_attn_weights = bool(getattr(
+            args,
+            "record_attn_weights",
+            getattr(args, "attn_res_record_weights", False),
+        ))
+        self._attn_weight_sums = {}
+        self._attn_weight_counts = {}
 
         self.active = self.enabled and self.mode in ("full", "block") and self.layers > 0
 
@@ -79,7 +86,31 @@ class DepthwiseAttentionResidual(nn.Module):
         logits = th.einsum("nbd,d->nb", key_stack, self.queries[layer_idx])
         logits = logits / math.sqrt(self.hidden_dim)
         weights = F.softmax(logits, dim=0).unsqueeze(-1)
+        self._record_attention_weights(layer_idx, weights)
         return (weights * value_stack).sum(dim=0)
+
+    def _record_attention_weights(self, layer_idx, weights):
+        if not self.record_attn_weights:
+            return
+
+        source_means = weights.detach().squeeze(-1).mean(dim=1).cpu()
+        for source_idx, value in enumerate(source_means):
+            key = "attn_res_l{}_src{}".format(layer_idx, source_idx)
+            self._attn_weight_sums[key] = self._attn_weight_sums.get(key, 0.0) + float(value.item())
+            self._attn_weight_counts[key] = self._attn_weight_counts.get(key, 0) + 1
+
+    def get_and_reset_attention_weight_stats(self):
+        if not self._attn_weight_sums:
+            return {}
+
+        stats = {
+            key: self._attn_weight_sums[key] / self._attn_weight_counts[key]
+            for key in sorted(self._attn_weight_sums)
+            if self._attn_weight_counts.get(key, 0) > 0
+        }
+        self._attn_weight_sums = {}
+        self._attn_weight_counts = {}
+        return stats
 
     def _forward_full(self, hidden):
         sources = [hidden]

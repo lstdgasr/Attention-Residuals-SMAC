@@ -11,12 +11,26 @@ SMAC 中更关键的问题是多智能体协同、局部观测、探索路径和
 
 AttnRes-L2 在 \code{5m\_vs\_6m} 的 AUC 和 best win 上有一定信号，在 IQL 上也显示出正向均值提升。
 但这些收益没有稳定转化为 QMIX final win rate。
-因此，当前结果更适合表述为“轻量化结构有潜力”，而不是“AttnRes 是稳定强算法”。
+因此，当前结果更适合表述为“轻量化结构存在有限正向信号”，而不是“AttnRes 是稳定性能提升方法”。
 
-\subsection{后续方向：Agent-wise Attention Communication}
+\subsection{与 Agent-wise Attention 方法的关系}
 
-根据当前结果与师兄建议，下一阶段不应继续将 Kimi/AttnRes 模块硬塞到 GRU 后面，而应将 attention 用于智能体间通信。
-可考虑如下结构：
+本文没有直接将 MAAC、TarMAC 或 MAT 等 agent-wise attention 方法作为实验 baseline，原因在于本文研究对象是 agent 内部的 depth-wise residual transfer，而这些方法主要建模智能体之间的交互、通信或序列化协同决策 \cite{iqbal2019actor,das2019tarmac,wen2022multiagenttransformer}。
+二者关注的结构维度不同：前者检验 LLM residual-depth 选择机制能否作为浅层 RNN agent 的后处理模块，后者直接面向 MARL 中的跨智能体信息选择。
+因此，本文将 MAAC、TarMAC 和 MAT 视为后续更合理的 agent-wise attention communication 方向，而不是当前 depth-wise transfer 实验的直接对照。
+
+\subsection{关于超参数调优的讨论}
+
+本文并不声称已经穷尽 AttnRes 的所有超参数设置。
+不同层数、dropout、query 初始化、MLP 宽度和训练超参数都可能影响最终结果。
+然而，当前实验已经覆盖 heavy full、lightweight L2、block aggregation 和 depth-only control，并在 IQL、VDN、QMIX 上进行 paired comparison。
+这些受控对照足以支持一个谨慎结论：在当前 PyMARL/SMAC 设置下，直接将 depth-wise Attention Residuals 插入浅层 recurrent agent 后不能形成稳定、低成本的性能收益。
+
+\subsection{Placement Matters：通信维度更适配}
+
+AttnComm-QMIX-L2 的初步结果并不推翻前文关于 direct depth-wise transfer 的结论，反而进一步解释了该结论。
+问题并不是 attention 或 selective aggregation 思想本身不适合 MARL，而是 LLM 中面向深层 residual stream 的结构被放置在了浅层 RNN agent 的不匹配位置。
+对于 SMAC 而言，更直接的瓶颈是 partial observability 和跨智能体协同，因此更自然的迁移位置是 agent dimension：
 
 \begin{equation}
   [h_1, h_2, \ldots, h_n]
@@ -25,14 +39,35 @@ AttnRes-L2 在 \code{5m\_vs\_6m} 的 AUC 和 best win 上有一定信号，在 I
   \rightarrow Q_i.
 \end{equation}
 
-该方向将 LLM 中“选择性聚合”的思想从 depth dimension 转移到 agent dimension，更符合 MARL 中跨智能体协同的任务瓶颈。
+在 \code{5m\_vs\_6m} 上，other-only 与 self-inclusive 两个版本相对 QMIX 都取得了正向均值提升，其中 other-only 版本的 final win 和 AUC 增益更大。
+这提供了一个有用信号：显式排除自身、强制从其他智能体聚合 message，可能比单纯允许 self-attention 表示变换更贴合 SMAC 的协同需求。
+不过，该结果仍来自 3 个 seeds 和一张主要诊断地图，因此应表述为初步正向信号，而不是稳定 SOTA 或普适提升。
+总体而言，agent-wise communication 将 LLM 中“选择性聚合”的思想从 depth dimension 转移到 agent dimension，更符合 MARL 中跨智能体协同的任务瓶颈。
 
 \begin{figure}[H]
   \centering
-  \fbox{\parbox{0.86\linewidth}{
-    \centering
-    TODO: 绘制 Direct depth transfer 与 Agent-wise communication transfer 的概念对比图。
-  }}
+  \begin{tikzpicture}[
+    node distance=0.85cm and 0.9cm,
+    box/.style={draw, rounded corners, thick, minimum width=2.45cm, minimum height=0.72cm, align=center},
+    source/.style={box, fill=orange!18, draw=orange!80!black},
+    attn/.style={box, fill=purple!16, draw=purple!75!black, minimum width=3.0cm},
+    result/.style={box, fill=green!16, draw=green!60!black},
+    arr/.style={-{Latex[length=2.2mm]}, thick}
+  ]
+    \node[source] (gru) {GRU hidden\\\(h_i^t\)};
+    \node[attn, right=of gru] (depth) {Depth-wise\\AttnRes};
+    \node[result, right=of depth] (qdepth) {Individual\\\(Q_i\)};
+    \node[above=0.12cm of depth] (toplabel) {Direct depth transfer};
+    \draw[arr] (gru) -- (depth);
+    \draw[arr] (depth) -- (qdepth);
+
+    \node[source, below=1.35cm of gru] (hs) {Agent hidden states\\\([h_1^t,\ldots,h_n^t]\)};
+    \node[attn, right=of hs] (comm) {Agent-wise\\Attention Communication};
+    \node[result, right=of comm] (qcomm) {Gated fusion\\and \(Q_i\)};
+    \node[above=0.12cm of comm] (bottomlabel) {MARL-specific transfer};
+    \draw[arr] (hs) -- (comm);
+    \draw[arr] (comm) -- (qcomm);
+  \end{tikzpicture}
   \caption{从 depth-wise residual transfer 到 agent-wise communication transfer}
   \label{fig:attncomm}
 \end{figure}
@@ -43,7 +78,11 @@ AttnRes-L2 在 \code{5m\_vs\_6m} 的 AUC 和 best win 上有一定信号，在 I
 
 \begin{itemize}
   \item seed 数量较少，统计显著性有限。
-  \item VDN baseline 已补齐，但跨算法验证仍仅覆盖 \code{5m\_vs\_6m} 一张地图。
-  \item 学习曲线图和 attention weight 分析尚未生成。
-  \item 当前方法只修改 agent 侧，尚未探索 mixer 或 communication 结构。
+  \item 当前跨算法验证主要集中在 \code{5m\_vs\_6m}，\code{3s5z} 只用于 QMIX 主线 sanity check。
+  \item 地图数量有限，尚不足以覆盖 SMAC 中不同难度、异质性和探索需求的任务类型。
+  \item 本文没有穷尽 AttnRes 的所有超参数组合，因此结论应理解为当前直接迁移方案缺乏稳定收益，而不是对所有 attention 结构的否定。
+  \item attention weight heatmap 仍更适合作为机制观察材料，而不是强因果证明。
+  \item 核心结论仍依赖 3 个 seeds，未来可优先扩展 QMIX、AttnRes-L2 和 depth-only control 的重复次数。
+  \item AttnComm 扩展目前主要在 \code{5m\_vs\_6m} 上呈现初步正向信号，\code{3s5z} 运行尚未完整同步，因此还不能支撑跨地图稳定提升的强结论。
+  \item 当前方法只修改 agent 侧，尚未探索 mixer 结构或更复杂的显式通信协议。
 \end{itemize}

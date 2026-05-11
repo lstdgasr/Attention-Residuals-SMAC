@@ -48,6 +48,13 @@ attn_res_hidden_dim: 64 # Internal AttnRes width
 attn_res_block_size: 0 # Block size for block AttnRes; 0 uses one block
 attn_res_dropout: 0.0 # Dropout inside virtual AttnRes transforms
 attn_res_rms_eps: 0.00000001 # RMSNorm epsilon for AttnRes keys
+record_attn_weights: False # Log depth-source AttnRes attention weights to Sacred when enabled
+attn_comm_enabled: False # Keep agent-wise communication disabled for baseline runs
+attn_comm_layers: 0 # Number of stacked agent-wise communication attention layers
+attn_comm_hidden_dim: 64 # Internal attention communication width
+attn_comm_dropout: 0.0 # Dropout after communication message projection
+attn_comm_source_mode: "self_inclusive" # self_inclusive | other_only
+record_comm_attn_weights: False # Log agent-wise communication attention weights to Sacred when enabled
 
 # --- Experiment running params ---
 repeat_id: 1

@@ -15,9 +15,9 @@ D:\MARL\MRAL-Server\MARL\pymarl-results\diagnostics
 | File | 用途 | 当前状态 |
 |---|---|---|
 | `marl_transfer_primary_qmix_table.csv` | QMIX 主实验表，包含 final win、best win、AUC、return、wall time | 可直接使用 |
-| `marl_transfer_cross_algorithm_pairs.csv` | IQL/QMIX paired seed 对照；VDN candidate 有结果但 baseline 缺失 | 可用于 seed 分析 |
-| `marl_transfer_cross_algorithm_aggregate.csv` | 跨算法均值对照 | 可直接使用，但不含 VDN aggregate |
-| `marl_transfer_missing_or_partial.csv` | 缺失实验清单 | 当前只缺 VDN baseline |
+| `marl_transfer_cross_algorithm_pairs.csv` | IQL/VDN/QMIX paired seed 对照 | 可用于 seed 分析 |
+| `marl_transfer_cross_algorithm_aggregate.csv` | 跨算法均值对照 | 可直接使用，已包含 VDN aggregate |
+| `marl_transfer_missing_or_partial.csv` | 缺失实验清单 | 当前为空 |
 
 ## 2. 必做表格
 
@@ -61,7 +61,7 @@ hypernet_layers | 2 | QMIX hypernetwork
 hypernet_embed | 64 | QMIX hypernetwork hidden size
 t_max | 2050000 | training timesteps
 test_nepisode | 32 | evaluation episodes
-seeds | 1,2,3 | repeated runs
+seeds | 1,2,3; selected seed4/5 follow-up | repeated runs and statistical follow-up
 ```
 
 状态：可直接从配置和 Sacred config 支撑。
@@ -83,7 +83,7 @@ qmix_attnres_l2 | QMIX | GRU -> Full AttnRes -> Q | 2 | full | lightweight trans
 qmix_attnres_block | QMIX | GRU -> Block AttnRes -> Q | 4 | block | block-wise transfer
 qmix_depth_mlp | QMIX | GRU -> residual MLP stack -> Q | 4 | no attention | depth-only control
 iql_attnres_l2 | IQL | lightweight AttnRes agent | 2 | full | cross-alg validation
-vdn_attnres_l2 | VDN | lightweight AttnRes agent | 2 | full | pending baseline comparison
+vdn_attnres_l2 | VDN | lightweight AttnRes agent | 2 | full | cross-alg validation
 ```
 
 状态：可直接使用。
@@ -125,7 +125,7 @@ IQL -> IQL+AttnRes-L2: final +0.0833, best +0.1458, AUC +0.0455
 QMIX -> QMIX+AttnRes-L2: final -0.0208, best +0.0208, AUC +0.0567
 ```
 
-状态：IQL/QMIX 可直接使用；VDN 暂不写入 aggregate 表，除非补齐 baseline。
+状态：`5m_vs_6m` 的 IQL/VDN/QMIX 可直接使用；`3s5z` 跨算法验证由 `run_marl_transfer_followup_6gpu.sh` 补齐后重新汇总。
 
 ## 3. 必做图
 
@@ -211,7 +211,7 @@ qmix_depth_mlp
 
 用途：结果分析主图。
 
-状态：需要从 Sacred `info.json` 生成。
+状态：已有脚本 `scripts/plot_marl_transfer_curves.py` 可从 Sacred `info.json` 生成。
 
 ### 图 6：`3s5z` QMIX variants win-rate learning curves
 
@@ -219,7 +219,7 @@ qmix_depth_mlp
 
 用途：说明 `3s5z` 接近饱和，区分度较低。
 
-状态：需要生成。
+状态：已有脚本 `scripts/plot_marl_transfer_curves.py` 可生成。
 
 ### 图 7：训练时间柱状图
 
@@ -235,7 +235,7 @@ qmix_depth_mlp: 8.40 h
 
 用途：支撑“heavy variants 成本过高”。
 
-状态：可直接从 CSV 生成。
+状态：已有脚本 `scripts/plot_marl_transfer_curves.py` 可直接从 Sacred metadata 生成。
 
 ### 图 8：跨算法 paired delta 图
 
@@ -252,21 +252,49 @@ QMIX final/best/AUC delta
 
 状态：可直接从 pair/aggregate CSV 生成。
 
-## 4. 当前缺失实验
+### 图 9：AttnRes-L2 attention heatmaps
 
-当前缺失项来自 `marl_transfer_missing_or_partial.csv`：
+建议画：
 
 ```text
-5m_vs_6m vdn seed1 missing
-5m_vs_6m vdn seed2 missing
-5m_vs_6m vdn seed3 missing
+5m_vs_6m qmix_attnres_l2 seed4/5 with record_attn_weights=True
+3s5z qmix_attnres_l2 seed4/5 with record_attn_weights=True
 ```
 
-建议处理方式：
+用途：机制分析，说明 AttnRes-L2 学到的 depth-source selection 倾向；不作为强因果证明。
 
-1. 如果时间允许，优先补齐 VDN baseline 三个 seed。
-2. 如果不补，论文中不要写“VDN 对照证明”，只写“VDN+AttnRes-L2 已运行但由于 baseline 缺失未纳入统计比较”。
-3. 若论文篇幅有限，跨算法部分保留 IQL/QMIX 已足够支撑“跨算法初步验证”。
+状态：由 `scripts/plot_attn_weight_heatmaps.py` 生成。
+
+## 4. 当前缺失实验与 follow-up 队列
+
+当前 `marl_transfer_missing_or_partial.csv` 为空。为了补齐论文仍存在的泛化与统计短板，使用 GPU `0,2,3,4,5,6` 运行：
+
+```bash
+cd /home/xhl009/MARL/pymarl
+conda activate pymarl-sc2
+export SC2PATH=/home/xhl009/MARL/pymarl/3rdparty/StarCraftII_srv
+export RESULTS_DIR=/home/xhl009/MARL/pymarl-results
+
+DRY_RUN=1 SESSION_PREFIX=followup6 bash scripts/run_marl_transfer_followup_6gpu.sh
+RUN_SMOKE_TEST=0 SESSION_PREFIX=followup6 bash scripts/run_marl_transfer_followup_6gpu.sh
+```
+
+训练完成后运行：
+
+```bash
+python scripts/summarize_marl_transfer_adaptation.py \
+  --sacred-dir results/sacred \
+  --output-dir "$RESULTS_DIR/diagnostics"
+
+python scripts/plot_marl_transfer_curves.py \
+  --sacred-dir results/sacred \
+  --output-dir paper/latex/figures
+
+python scripts/plot_attn_weight_heatmaps.py \
+  --sacred-dir results/sacred \
+  --output-dir paper/latex/figures \
+  --configs qmix_attnres_l2
+```
 
 ## 5. 需要补充的统计分析
 
@@ -287,7 +315,7 @@ mean_delta_win_auc
 mean_wall_time_ratio
 ```
 
-不足：主表没有 std，需要另写脚本或扩展 summary。
+已扩展 summary 脚本输出主表 std 和跨算法 delta std。由于 seed 仍较少，正文仍应避免显著性过度声明。
 
 ## 6. 写作时应避免的结论
 
@@ -295,7 +323,7 @@ mean_wall_time_ratio
 
 - “AttnRes 显著优于 QMIX。”
 - “LLM 结构可直接提升 MARL。”
-- “VDN 上也验证有效。”，除非补齐 VDN baseline。
+- “VDN 上也稳定验证有效。”，当前 VDN 更适合写成 mixed or unstable。
 
 建议写：
 
@@ -308,8 +336,8 @@ mean_wall_time_ratio
 
 建议按以下顺序推进：
 
-1. 补 VDN baseline 或决定删除 VDN 对照。
-2. 生成学习曲线和训练时间图。
-3. 扩展 summary 脚本输出 std 和 paired seed delta 表。
-4. 补参考文献。
-5. 按 `chinese_thesis_framework.md` 逐节扩写：摘要 -> 引言 -> 方法 -> 实验 -> 结果 -> 讨论。
+1. 运行 `scripts/run_marl_transfer_followup_6gpu.sh`。
+2. 重新生成 summary、学习曲线、训练时间图和 attention heatmap。
+3. 检查 `marl_transfer_missing_or_partial.csv` 是否为空。
+4. 将 `3s5z_cross_algorithm_win_curve.pdf` 和 attention heatmaps 接入 LaTeX。
+5. 按保守口径更新结果与讨论：mean/std、paired seed delta、AUC wins/final wins。

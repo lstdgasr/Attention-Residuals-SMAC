@@ -9,14 +9,59 @@ import numpy as np
 
 
 PRIMARY_MAPS = ["5m_vs_6m", "3s5z"]
-PRIMARY_CONFIGS = ["qmix", "qmix_attnres", "qmix_attnres_l2", "qmix_attnres_block", "qmix_depth_mlp"]
-CROSS_MAP = "5m_vs_6m"
+PRIMARY_CONFIGS = [
+    "qmix",
+    "qmix_attnres",
+    "qmix_attnres_l2",
+    "qmix_attnres_block",
+    "qmix_depth_mlp",
+    "qmix_attncomm_l2_other",
+    "qmix_attncomm_l2_self",
+]
+HARDMIX_PRIMARY_CONFIGS = ["qmix", "qmix_attnres_l2", "qmix_depth_mlp"]
+PRIMARY_3_SEED_CONFIGS = {"qmix_attnres", "qmix_attnres_block", "qmix_attncomm_l2_other", "qmix_attncomm_l2_self"}
+SEEDS_3 = ["1", "2", "3"]
+SEEDS_5 = ["1", "2", "3", "4", "5"]
+HARDMIX_SEEDS_BY_MAP = {
+    "5m_vs_6m": ["4", "5"],
+    "8m_vs_9m": ["1", "2"],
+    "3s5z_vs_3s6z": ["1", "2"],
+    "MMM2": ["1", "2"],
+}
+CROSS_MAPS = ["5m_vs_6m", "3s5z"]
 CROSS_PAIRS = [
     ("iql", "iql_attnres_l2"),
     ("vdn", "vdn_attnres_l2"),
     ("qmix", "qmix_attnres_l2"),
+    ("qmix", "qmix_attncomm_l2_other"),
+    ("qmix", "qmix_attncomm_l2_self"),
 ]
-SEEDS = ["1", "2", "3"]
+
+
+def expected_primary_seeds(config, map_name=None, hardmix=False, seed_override=None):
+    if seed_override is not None:
+        return seed_override
+    if hardmix and map_name in HARDMIX_SEEDS_BY_MAP:
+        return HARDMIX_SEEDS_BY_MAP[map_name]
+    return SEEDS_3 if config in PRIMARY_3_SEED_CONFIGS else SEEDS_5
+
+
+def comma_list(value):
+    if value is None:
+        return None
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def pair_list(value):
+    if value is None:
+        return None
+    pairs = []
+    for item in comma_list(value):
+        if ":" not in item:
+            raise ValueError("Cross pair '{}' must use baseline:candidate format".format(item))
+        baseline, candidate = item.split(":", 1)
+        pairs.append((baseline.strip(), candidate.strip()))
+    return pairs
 
 
 def _as_float(value):
@@ -147,13 +192,21 @@ def mean(values):
     return float(np.mean(values)) if values else ""
 
 
-def primary_table(runs):
+def std(values):
+    values = [float(v) for v in values if v not in ("", None)]
+    return float(np.std(values)) if values else ""
+
+
+def primary_table(runs, maps=None, configs=None, hardmix=False, seed_override=None):
+    maps = maps if maps is not None else PRIMARY_MAPS
+    configs = configs if configs is not None else PRIMARY_CONFIGS
     rows = []
-    for map_name in PRIMARY_MAPS:
-        for config in PRIMARY_CONFIGS:
+    for map_name in maps:
+        for config in configs:
+            expected_seeds = expected_primary_seeds(config, map_name, hardmix, seed_override)
             summaries = []
             missing = []
-            for seed in SEEDS:
+            for seed in expected_seeds:
                 run = runs.get((map_name, config, seed))
                 if not run:
                     missing.append(seed)
@@ -167,59 +220,68 @@ def primary_table(runs):
             rows.append({
                 "map": map_name,
                 "config": config,
+                "expected_seeds": len(expected_seeds),
                 "available_seeds": len(summaries),
                 "complete_seeds": sum(1 for s in summaries if s["status"] == "COMPLETED"),
                 "missing_or_partial": ";".join(missing),
                 "final_win_mean": mean([s["final_win"] for s in summaries]),
+                "final_win_std": std([s["final_win"] for s in summaries]),
                 "best_win_mean": mean([s["best_win"] for s in summaries]),
+                "best_win_std": std([s["best_win"] for s in summaries]),
                 "win_auc_mean": mean([s["win_auc"] for s in summaries]),
+                "win_auc_std": std([s["win_auc"] for s in summaries]),
                 "final_return_mean": mean([s["final_return"] for s in summaries]),
+                "final_return_std": std([s["final_return"] for s in summaries]),
                 "wall_hours_mean": mean([s["wall_hours"] for s in summaries]),
+                "wall_hours_std": std([s["wall_hours"] for s in summaries]),
             })
     return rows
 
 
-def cross_algorithm_table(runs):
+def cross_algorithm_table(runs, maps=None, pairs=None):
+    maps = maps if maps is not None else CROSS_MAPS
+    pairs = pairs if pairs is not None else CROSS_PAIRS
     rows = []
-    for baseline, candidate in CROSS_PAIRS:
-        for seed in SEEDS:
-            base = runs.get((CROSS_MAP, baseline, seed))
-            cand = runs.get((CROSS_MAP, candidate, seed))
-            row = {
-                "map": CROSS_MAP,
-                "baseline": baseline,
-                "candidate": candidate,
-                "seed": seed,
-                "baseline_run_id": base["run_id"] if base else "",
-                "candidate_run_id": cand["run_id"] if cand else "",
-                "baseline_status": base["status"] if base else "",
-                "candidate_status": cand["status"] if cand else "",
-            }
-            if not base or not cand:
-                row["decision"] = "missing_pair"
+    for map_name in maps:
+        for baseline, candidate in pairs:
+            for seed in SEEDS_3:
+                base = runs.get((map_name, baseline, seed))
+                cand = runs.get((map_name, candidate, seed))
+                row = {
+                    "map": map_name,
+                    "baseline": baseline,
+                    "candidate": candidate,
+                    "seed": seed,
+                    "baseline_run_id": base["run_id"] if base else "",
+                    "candidate_run_id": cand["run_id"] if cand else "",
+                    "baseline_status": base["status"] if base else "",
+                    "candidate_status": cand["status"] if cand else "",
+                }
+                if not base or not cand:
+                    row["decision"] = "missing_pair"
+                    rows.append(row)
+                    continue
+                b = summarize_run(base)
+                c = summarize_run(cand)
+                row.update({
+                    "baseline_final_win": b["final_win"],
+                    "candidate_final_win": c["final_win"],
+                    "delta_final_win": _delta(c["final_win"], b["final_win"]),
+                    "baseline_best_win": b["best_win"],
+                    "candidate_best_win": c["best_win"],
+                    "delta_best_win": _delta(c["best_win"], b["best_win"]),
+                    "baseline_win_auc": b["win_auc"],
+                    "candidate_win_auc": c["win_auc"],
+                    "delta_win_auc": _delta(c["win_auc"], b["win_auc"]),
+                    "baseline_final_return": b["final_return"],
+                    "candidate_final_return": c["final_return"],
+                    "delta_final_return": _delta(c["final_return"], b["final_return"]),
+                    "baseline_wall_hours": b["wall_hours"],
+                    "candidate_wall_hours": c["wall_hours"],
+                    "wall_time_ratio": _ratio(c["wall_hours"], b["wall_hours"]),
+                })
+                row["decision"] = pair_decision(row)
                 rows.append(row)
-                continue
-            b = summarize_run(base)
-            c = summarize_run(cand)
-            row.update({
-                "baseline_final_win": b["final_win"],
-                "candidate_final_win": c["final_win"],
-                "delta_final_win": _delta(c["final_win"], b["final_win"]),
-                "baseline_best_win": b["best_win"],
-                "candidate_best_win": c["best_win"],
-                "delta_best_win": _delta(c["best_win"], b["best_win"]),
-                "baseline_win_auc": b["win_auc"],
-                "candidate_win_auc": c["win_auc"],
-                "delta_win_auc": _delta(c["win_auc"], b["win_auc"]),
-                "baseline_final_return": b["final_return"],
-                "candidate_final_return": c["final_return"],
-                "delta_final_return": _delta(c["final_return"], b["final_return"]),
-                "baseline_wall_hours": b["wall_hours"],
-                "candidate_wall_hours": c["wall_hours"],
-                "wall_time_ratio": _ratio(c["wall_hours"], b["wall_hours"]),
-            })
-            row["decision"] = pair_decision(row)
-            rows.append(row)
     return rows
 
 
@@ -240,25 +302,35 @@ def cross_algorithm_aggregate(pair_rows):
             "final_win_wins": sum(1 for r in group if float(r.get("delta_final_win", 0)) > 0),
             "auc_wins": sum(1 for r in group if float(r.get("delta_win_auc", 0)) > 0),
             "mean_delta_final_win": mean([r.get("delta_final_win") for r in group]),
+            "std_delta_final_win": std([r.get("delta_final_win") for r in group]),
             "mean_delta_best_win": mean([r.get("delta_best_win") for r in group]),
+            "std_delta_best_win": std([r.get("delta_best_win") for r in group]),
             "mean_delta_win_auc": mean([r.get("delta_win_auc") for r in group]),
+            "std_delta_win_auc": std([r.get("delta_win_auc") for r in group]),
             "mean_wall_time_ratio": mean([r.get("wall_time_ratio") for r in group]),
+            "std_wall_time_ratio": std([r.get("wall_time_ratio") for r in group]),
             "paper_reading": reading_for_group(group),
         })
     return rows
 
 
-def missing_table(runs):
+def missing_table(runs, maps=None, configs=None, include_cross=True, cross_maps=None, hardmix=False, seed_override=None, cross_pairs=None):
+    maps = maps if maps is not None else PRIMARY_MAPS
+    configs = configs if configs is not None else PRIMARY_CONFIGS
+    cross_maps = cross_maps if cross_maps is not None else CROSS_MAPS
+    cross_pairs = cross_pairs if cross_pairs is not None else CROSS_PAIRS
     rows = []
     expected = []
-    for map_name in PRIMARY_MAPS:
-        for config in PRIMARY_CONFIGS:
-            for seed in SEEDS:
+    for map_name in maps:
+        for config in configs:
+            for seed in expected_primary_seeds(config, map_name, hardmix, seed_override):
                 expected.append((map_name, config, seed, "primary"))
-    for baseline, candidate in CROSS_PAIRS:
-        for seed in SEEDS:
-            expected.append((CROSS_MAP, baseline, seed, "cross"))
-            expected.append((CROSS_MAP, candidate, seed, "cross"))
+    if include_cross:
+        for map_name in cross_maps:
+            for baseline, candidate in cross_pairs:
+                for seed in SEEDS_3:
+                    expected.append((map_name, baseline, seed, "cross"))
+                    expected.append((map_name, candidate, seed, "cross"))
 
     seen = set()
     for map_name, config, seed, group in expected:
@@ -331,6 +403,8 @@ def write_csv(path, rows):
             if key not in fields:
                 fields.append(key)
     with path.open("w", newline="") as f:
+        if not fields:
+            return
         writer = csv.DictWriter(f, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
@@ -339,11 +413,11 @@ def write_csv(path, rows):
 def print_compact(primary, cross_agg, missing):
     print("Primary QMIX table")
     for row in primary:
-        print("{map} {config} complete={complete_seeds}/3 final={final_win_mean} auc={win_auc_mean} missing={missing_or_partial}".format(**row))
+        print("{map} {config} complete={complete_seeds}/{expected_seeds} final={final_win_mean} auc={win_auc_mean} missing={missing_or_partial}".format(**row))
     print()
     print("Cross-algorithm transfer table")
     for row in cross_agg:
-        print("{baseline}->{candidate} paired={paired_seeds} final_delta={mean_delta_final_win} auc_delta={mean_delta_win_auc} reading={paper_reading}".format(**row))
+        print("{map} {baseline}->{candidate} paired={paired_seeds} final_delta={mean_delta_final_win} auc_delta={mean_delta_win_auc} reading={paper_reading}".format(**row))
     print()
     if missing:
         print("Missing or partial slots")
@@ -357,15 +431,28 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Build paper-oriented tables for the LLM-to-MARL AttnRes adaptation study.")
     parser.add_argument("--sacred-dir", default="results/sacred")
     parser.add_argument("--output-dir", default=None)
+    parser.add_argument("--maps", default=None, help="Comma-separated primary maps to summarize.")
+    parser.add_argument("--primary-configs", default=None, help="Comma-separated primary configs to summarize.")
+    parser.add_argument("--seeds", default=None, help="Comma-separated expected seeds for every primary map/config.")
+    parser.add_argument("--include-cross", action="store_true", help="Also write cross-algorithm paired tables for the selected/default maps.")
+    parser.add_argument("--cross-pairs", default=None, help="Comma-separated baseline:candidate pairs for paired tables.")
     args = parser.parse_args(argv)
 
     runs = load_best_runs(args.sacred_dir)
     output_dir = Path(args.output_dir) if args.output_dir else Path(args.sacred_dir).parent / "diagnostics"
+    maps = comma_list(args.maps)
+    primary_configs = comma_list(args.primary_configs)
+    seed_override = comma_list(args.seeds)
+    cross_pairs_arg = pair_list(args.cross_pairs)
+    hardmix = maps is not None and seed_override is None
+    if maps is not None and primary_configs is None:
+        primary_configs = HARDMIX_PRIMARY_CONFIGS
+    include_cross = args.include_cross or maps is None
 
-    primary = primary_table(runs)
-    cross_pairs = cross_algorithm_table(runs)
+    primary = primary_table(runs, maps=maps, configs=primary_configs, hardmix=hardmix, seed_override=seed_override)
+    cross_pairs = cross_algorithm_table(runs, maps=maps, pairs=cross_pairs_arg) if include_cross else []
     cross_agg = cross_algorithm_aggregate(cross_pairs)
-    missing = missing_table(runs)
+    missing = missing_table(runs, maps=maps, configs=primary_configs, include_cross=include_cross, cross_maps=maps, hardmix=hardmix, seed_override=seed_override, cross_pairs=cross_pairs_arg)
 
     write_csv(output_dir / "marl_transfer_primary_qmix_table.csv", primary)
     write_csv(output_dir / "marl_transfer_cross_algorithm_pairs.csv", cross_pairs)

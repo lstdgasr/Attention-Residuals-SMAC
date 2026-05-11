@@ -1,0 +1,23 @@
+\begin{table}[H]
+  \centering
+  \caption{\code{5m\_vs\_6m} 上 AttnRes-L2 的 paired seed delta。Delta 为 candidate 减 baseline。}
+  \label{tab:paired-seed-delta}
+  \resizebox{\linewidth}{!}{
+  \begin{tabular}{llrrrrl}
+    \toprule
+    Baseline & Seed & Baseline Final & L2 Final & $\Delta$ Final & $\Delta$ AUC & Seed-level 判断 \\
+    \midrule
+    \code{iql} & 1 & 0.3750 & 0.3125 & -0.0625 & +0.0412 & mixed \\
+    \code{iql} & 2 & 0.3750 & 0.6563 & +0.2813 & +0.0580 & candidate better \\
+    \code{iql} & 3 & 0.4063 & 0.4375 & +0.0313 & +0.0372 & candidate better \\
+    \midrule
+    \code{vdn} & 1 & 0.6563 & 0.6250 & -0.0313 & -0.0585 & candidate worse \\
+    \code{vdn} & 2 & 0.5625 & 0.7813 & +0.2188 & +0.1138 & candidate better \\
+    \code{vdn} & 3 & 0.6563 & 0.6563 & +0.0000 & +0.1177 & mixed \\
+    \midrule
+    \code{qmix} & 1 & 0.7500 & 0.6875 & -0.0625 & +0.0887 & mixed \\
+    \code{qmix} & 2 & 0.4375 & 0.6563 & +0.2188 & +0.1528 & candidate better \\
+    \code{qmix} & 3 & 0.6875 & 0.4688 & -0.2188 & -0.0714 & candidate worse \\
+    \bottomrule
+  \end{tabular}}
+\end{table}
