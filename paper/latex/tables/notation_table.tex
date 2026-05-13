@@ -1,0 +1,62 @@
+\begin{center}
+  {\zihao{2}\bfseries 注释表}
+\end{center}
+
+\vspace{1.2em}
+
+\begingroup
+\renewcommand{\arraystretch}{1.35}
+\setlength{\tabcolsep}{8pt}
+\small
+\noindent\resizebox{\linewidth}{!}{%
+\begin{tabular}{|>{\raggedright\arraybackslash}p{0.14\linewidth}|>{\raggedright\arraybackslash}p{0.34\linewidth}|>{\raggedright\arraybackslash}p{0.14\linewidth}|>{\raggedright\arraybackslash}p{0.34\linewidth}|}
+  \hline
+  \(\mathcal{G}\) & Dec-POMDP 形式化任务 & \(\mathcal{S}\) & 全局状态空间 \\
+  \hline
+  \(\mathcal{U}\) & 单个智能体动作空间 & \(P\) & 状态转移函数 \\
+  \hline
+  \(r\) & 团队共享奖励 & \(\mathcal{Z}\) & 局部观测空间 \\
+  \hline
+  \(O\) & 观测函数 & \(n\) & 智能体数量 \\
+  \hline
+  \(\gamma\) & 折扣因子 & \(t\) & 训练或环境时间步 \\
+  \hline
+  \(i\) & 智能体索引 & \(s^t\) & 时刻 \(t\) 的全局状态 \\
+  \hline
+  \(o_i^t\) & 智能体 \(i\) 的局部观测 & \(\tau_i^t\) & 智能体 \(i\) 的历史轨迹 \\
+  \hline
+  \(u_i^t\) & 智能体 \(i\) 的动作 & \(\mathbf{u}^t\) & 联合动作 \\
+  \hline
+  \(x_i^t\) & RNN agent 输入 & \(e_i^t\) & 输入编码后的 embedding \\
+  \hline
+  \(h_i^t\) & GRU hidden state & \(Q_i^t\) & 个体动作价值输出 \\
+  \hline
+  \(Q_{\mathrm{tot}}\) & VDN/QMIX 联合动作价值 & \(f_{\mathrm{mix}}\) & QMIX mixing network \\
+  \hline
+  \(\mathcal{S}_\ell\) & 第 \(\ell\) 层 AttnRes source 集合 & \(q_\ell\) & AttnRes 可学习 query \\
+  \hline
+  \(s_j\) & AttnRes source 元素 & \(\alpha_{\ell,j}\) & depth-wise attention 权重 \\
+  \hline
+  \(a_\ell\) & 第 \(\ell\) 层 attention 聚合结果 & \(u_\ell\) & MLP transform 生成的新 source \\
+  \hline
+  \(z_\ell\) & 第 \(\ell\) 层 AttnRes 输出 & \(L\) & AttnRes 或 AttnComm 层数 \\
+  \hline
+  \(B\) & Block AttnRes 的 block size & \(H^t\) & 同一时间步所有 agent hidden states \\
+  \hline
+  \(\mathcal{N}_i\) & 智能体 \(i\) 的候选通信源集合 & \(q_i^{(\ell)}\) & AttnComm 中智能体 \(i\) 的 query \\
+  \hline
+  \(k_j^{(\ell)}\) & 通信源智能体 \(j\) 的 key & \(v_j^{(\ell)}\) & 通信源智能体 \(j\) 的 value \\
+  \hline
+  \(\alpha_{ij}^{(\ell)}\) & agent-wise communication attention 权重 & \(m_i^{(\ell)}\) & 智能体 \(i\) 聚合得到的通信消息 \\
+  \hline
+  \(g_i^{(\ell)}\) & gated residual fusion 门控向量 & \(t_{\max}\) & 训练步数上限 \\
+  \hline
+  \(w_k\) & 第 \(k\) 次测试胜率 & \(w_{\mathrm{best}}\) & 训练过程最高测试胜率 \\
+  \hline
+  \(\mathrm{AUC}\) & win-rate 曲线面积指标 & \(R_k\) & 第 \(k\) 次测试回报 \\
+  \hline
+  \(\Delta\) & candidate 相对 baseline 的 paired seed 差值 & \(\theta\) & 网络训练参数 \\
+  \hline
+\end{tabular}%
+}
+\endgroup

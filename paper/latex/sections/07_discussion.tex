@@ -82,7 +82,8 @@ AttnComm-QMIX-L2 的初步结果并不推翻前文关于 direct depth-wise trans
   \item 地图数量有限，尚不足以覆盖 SMAC 中不同难度、异质性和探索需求的任务类型。
   \item 本文没有穷尽 AttnRes 的所有超参数组合，因此结论应理解为当前直接迁移方案缺乏稳定收益，而不是对所有 attention 结构的否定。
   \item attention weight heatmap 仍更适合作为机制观察材料，而不是强因果证明。
-  \item 核心结论仍依赖 3 个 seeds，未来可优先扩展 QMIX、AttnRes-L2 和 depth-only control 的重复次数。
-  \item AttnComm 扩展目前主要在 \code{5m\_vs\_6m} 上呈现初步正向信号，\code{3s5z} 运行尚未完整同步，因此还不能支撑跨地图稳定提升的强结论。
+  \item 核心结论仍依赖 3 个 paired seeds，统计显著性有限；考虑到 5M 训练设置下单个 run 的墙钟成本较高，seed4/5 更适合作为后续增强实验，而不是当前结论成立的必要条件。
+  \item AttnComm 扩展目前主要在 \code{5m\_vs\_6m} 上呈现初步正向信号；\code{3s5z} sanity check 已补齐，但该地图接近饱和，因此仍不能支撑跨地图稳定提升的强结论。
+  \item 本文没有将 AttnComm 扩展到 IQL 或 VDN，因为当前目标是检验 QMIX agent 侧通信位置是否比 depth-wise transfer 更贴合任务瓶颈；跨算法 AttnComm 验证会引入额外变量，留作后续工作。
   \item 当前方法只修改 agent 侧，尚未探索 mixer 结构或更复杂的显式通信协议。
 \end{itemize}

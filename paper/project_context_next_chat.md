@@ -2,7 +2,7 @@
 
 > 用途：下次新对话开始时，直接读取本文件，让 AI 快速恢复项目背景、关键决策、代码状态、实验结果、同步路径和论文写作口径。
 
-更新时间：2026-05-11  
+更新时间：2026-05-13  
 本地工作目录：`D:\MARL\MRAL-Server\MARL\pymarl`  
 服务器对应目录：`/home/xhl009/MARL/pymarl`  
 服务器结果目录：`/home/xhl009/MARL/pymarl-results`  
@@ -31,6 +31,7 @@ structure is placed relative to MARL task bottlenecks.
 - AttnComm 不是推翻原结论，而是进一步解释原结论：attention 思想本身不是问题，迁移位置更关键。
 - 论文后半部分可以把 AttnComm 作为重要亮点：`agent-wise communication transfer` 比 `depth-wise residual transfer` 更贴近 SMAC 的 partial observability 和 coordination bottleneck。
 - 当前 AttnComm 结果只能写成 `preliminary positive signal`，不能写成跨地图稳定提升。
+- 当前论文数据已经可以收口；不再强制补跑 `3s5z`、`5m_vs_6m` seed4/5、新 hard map，或把 AttnComm 扩到 IQL/VDN。
 
 最终收束句可用：
 
@@ -249,7 +250,7 @@ SC2PATH=/home/xhl009/MARL/pymarl/3rdparty/StarCraftII_srv
 test_nepisode=32
 ```
 
-任务策略：
+初始任务策略：
 
 - `5m_vs_6m` 跑完整公平对比：
   - `qmix`
@@ -262,7 +263,14 @@ test_nepisode=32
   - `qmix_attncomm_l2_self`
   - seeds `1,2,3`
 - 不重跑 `3s5z qmix` baseline。
-- 不重跑 `3s5z qmix_attnres_l2`。
+- 初始计划不重跑 `3s5z qmix_attnres_l2`。
+
+后续实际补跑状态：
+
+- 为补齐本地 summary 缺口，已额外 rerun `3s5z qmix_attnres_l2` seeds `1,2,3`。
+- 已 rerun `3s5z qmix_attncomm_l2_other` seed `3`，覆盖旧 FAILED run。
+- 已 rerun `3s5z qmix_attncomm_l2_self` seed `3`，覆盖旧 missing slot。
+- 这些 rerun 已同步到本地 Sacred runs `18-22`，并通过 `scripts/finalize_3s5z_rerun_local.ps1` 验证。
 
 结果处理脚本：
 
@@ -270,6 +278,7 @@ test_nepisode=32
 scripts/summarize_marl_transfer_adaptation.py
 scripts/plot_marl_transfer_curves.py
 scripts/plot_comm_attn_heatmaps.py
+scripts/finalize_3s5z_rerun_local.ps1
 ```
 
 已支持：
@@ -280,6 +289,7 @@ scripts/plot_comm_attn_heatmaps.py
 - AttnComm paired delta。
 - AttnComm curve labels。
 - communication attention heatmap。
+- 本地 3s5z rerun 收口脚本：重新汇总、画图、验证关键配置 3/3 complete，并可复制 3s5z figures 到论文目录。
 
 ### 3.5 测试状态
 
@@ -308,13 +318,31 @@ py_compile: OK
 
 ### 4.1 已同步结果文件
 
-用户已将服务器 `5m_vs_6m` 结果同步到本地：
+用户已将服务器 `5m_vs_6m` 与 `3s5z` rerun 结果同步到本地：
 
 ```text
 D:\MARL\MRAL-Server\MARL\pymarl-results\diagnostics\marl_transfer_primary_qmix_table.csv
 D:\MARL\MRAL-Server\MARL\pymarl-results\diagnostics\marl_transfer_cross_algorithm_aggregate.csv
 D:\MARL\MRAL-Server\MARL\pymarl-results\diagnostics\marl_transfer_missing_or_partial.csv
 D:\MARL\MRAL-Server\MARL\pymarl-results\figures\
+D:\MARL\MRAL-Server\MARL\pymarl-results\sacred\18
+D:\MARL\MRAL-Server\MARL\pymarl-results\sacred\19
+D:\MARL\MRAL-Server\MARL\pymarl-results\sacred\20
+D:\MARL\MRAL-Server\MARL\pymarl-results\sacred\21
+D:\MARL\MRAL-Server\MARL\pymarl-results\sacred\22
+```
+
+本地收口命令已执行并通过：
+
+```powershell
+cd D:\MARL\MRAL-Server\MARL\pymarl
+powershell -ExecutionPolicy Bypass -File scripts\finalize_3s5z_rerun_local.ps1 -CopyPaperFigures
+```
+
+验证结果：
+
+```text
+Validation passed. 3s5z rerun summaries and figures are complete.
 ```
 
 ### 4.2 5m_vs_6m 当前可写结果
@@ -371,13 +399,44 @@ qmix_attncomm_l2_self:
 - 训练成本约为 QMIX 的 `1.35x`，比 heavy Full/Block AttnRes 更可控。
 - 该结果可以作为论文后半部分的亮点，但只能写成 `5m_vs_6m` 上的初步正向信号。
 
-### 4.3 尚未作为主结论的对照
+### 4.3 3s5z sanity check 当前结果
 
 `3s5z`：
 
-- 当前同步数据不完整。
-- 不适合进入正式结果表。
-- 后续完成后只作为 sanity check，确认 AttnComm 没有明显 collapse。
+- 已补齐 rerun，同步后的关键 3 个配置均为 `3/3 complete`。
+- 新增 Sacred runs：
+  - `18`: `3s5z qmix_attnres_l2 seed=1`
+  - `19`: `3s5z qmix_attncomm_l2_other seed=3`
+  - `20`: `3s5z qmix_attnres_l2 seed=3`
+  - `21`: `3s5z qmix_attnres_l2 seed=2`
+  - `22`: `3s5z qmix_attncomm_l2_self seed=3`
+- 最新结果：
+
+```text
+qmix_attnres_l2:
+  complete  3/3
+  final win 0.9583
+  best win  1.0000
+  AUC       0.7608
+  wall      18.17 h
+
+qmix_attncomm_l2_other:
+  complete  3/3
+  final win 0.9792
+  best win  1.0000
+  AUC       0.8078
+  wall      15.34 h
+
+qmix_attncomm_l2_self:
+  complete  3/3
+  final win 0.9271
+  best win  1.0000
+  AUC       0.7951
+  wall      13.88 h
+```
+
+- `3s5z` 仍只作为 sanity check：该地图接近饱和，不能写成跨地图稳定提升的强证据。
+- 可写口径：AttnComm 在 `3s5z` 没有明显 collapse，other-only 的 AUC 也高于 AttnRes-L2；但主结论仍依赖诊断地图 `5m_vs_6m`。
 
 ### 4.4 Heatmap
 
@@ -386,6 +445,10 @@ qmix_attncomm_l2_self:
 ```text
 paper/latex/figures/5m_vs_6m_qmix_attncomm_l2_other_l0_attncomm_attention_heatmap.pdf
 paper/latex/figures/5m_vs_6m_qmix_attncomm_l2_self_l0_attncomm_attention_heatmap.pdf
+paper/latex/figures/3s5z_qmix_attncomm_l2_other_l0_attncomm_attention_heatmap.pdf
+paper/latex/figures/3s5z_qmix_attncomm_l2_other_l1_attncomm_attention_heatmap.pdf
+paper/latex/figures/3s5z_qmix_attncomm_l2_self_l0_attncomm_attention_heatmap.pdf
+paper/latex/figures/3s5z_qmix_attncomm_l2_self_l1_attncomm_attention_heatmap.pdf
 ```
 
 解释：
@@ -468,7 +531,7 @@ paper/latex/tables/attncomm_5m_extension_results.tex
   - paired seeds final/AUC 都是 2/3 优于 QMIX。
   - `other-only > self-inclusive`。
   - `qmix_attnres_l2` 已完成 3/3，final win 有小幅正向均值，但 AUC 增益很小且方差较大，因此仍写成 direct transfer 弱信号/不稳定。
-  - `3s5z` AttnComm 仍不完整。
+  - `3s5z` AttnComm sanity check 已补齐，但该地图接近饱和，因此只作为补充验证，不作为跨地图稳定提升的强证据。
 
 第 7 章：
 
@@ -486,7 +549,7 @@ paper/latex/tables/attncomm_5m_extension_results.tex
   - AttnComm-QMIX-L2 在 `5m_vs_6m` 上显示更明确正向信号。
   - 更合理方向是把 selective attention 放到 agent-wise communication。
 - 未来工作已改为：
-  - 完成并分析 `3s5z` AttnComm sanity check。
+  - 在更有区分度的 SMAC 地图上继续验证 AttnComm 信号，而不是依赖接近饱和的 `3s5z` sanity check。
   - 更多地图比较 `other` 与 `self`。
   - 分析 communication attention weights。
   - 增加 seeds 和统计显著性分析。
@@ -501,6 +564,11 @@ paper/latex/figures/5m_vs_6m_cross_algorithm_win_curve.pdf
 paper/latex/figures/5m_vs_6m_wall_time_bar.pdf
 paper/latex/figures/5m_vs_6m_qmix_attncomm_l2_other_l0_attncomm_attention_heatmap.pdf
 paper/latex/figures/5m_vs_6m_qmix_attncomm_l2_self_l0_attncomm_attention_heatmap.pdf
+paper/latex/figures/3s5z_qmix_win_curve.pdf
+paper/latex/figures/3s5z_qmix_attncomm_l2_other_l0_attncomm_attention_heatmap.pdf
+paper/latex/figures/3s5z_qmix_attncomm_l2_other_l1_attncomm_attention_heatmap.pdf
+paper/latex/figures/3s5z_qmix_attncomm_l2_self_l0_attncomm_attention_heatmap.pdf
+paper/latex/figures/3s5z_qmix_attncomm_l2_self_l1_attncomm_attention_heatmap.pdf
 ```
 
 新增或已有 tables：
@@ -561,6 +629,8 @@ scripts/summarize_marl_transfer_adaptation.py
 scripts/plot_marl_transfer_curves.py
 scripts/plot_comm_attn_heatmaps.py
 scripts/run_attncomm_qmix_l2_4gpu_server.sh
+scripts/run_5m_attncomm_seed45_4gpu_server.sh
+scripts/finalize_3s5z_rerun_local.ps1
 paper/project_context_next_chat.md
 ```
 
@@ -580,6 +650,11 @@ paper/latex/figures/5m_vs_6m_cross_algorithm_win_curve.pdf
 paper/latex/figures/5m_vs_6m_wall_time_bar.pdf
 paper/latex/figures/5m_vs_6m_qmix_attncomm_l2_other_l0_attncomm_attention_heatmap.pdf
 paper/latex/figures/5m_vs_6m_qmix_attncomm_l2_self_l0_attncomm_attention_heatmap.pdf
+paper/latex/figures/3s5z_qmix_win_curve.pdf
+paper/latex/figures/3s5z_qmix_attncomm_l2_other_l0_attncomm_attention_heatmap.pdf
+paper/latex/figures/3s5z_qmix_attncomm_l2_other_l1_attncomm_attention_heatmap.pdf
+paper/latex/figures/3s5z_qmix_attncomm_l2_self_l0_attncomm_attention_heatmap.pdf
+paper/latex/figures/3s5z_qmix_attncomm_l2_self_l1_attncomm_attention_heatmap.pdf
 ```
 
 ### 6.2 服务器结果同步回本地
@@ -662,54 +737,129 @@ python scripts/plot_comm_attn_heatmaps.py \
 
 ### 8.1 实验
 
-1. 等 `3s5z` 的 AttnComm jobs 完成并重新同步。
-2. 重新运行汇总命令。
-3. 重新检查 `5m_vs_6m` 和 `3s5z` 的 complete/missing 状态。
-4. 检查 `marl_transfer_missing_or_partial.csv`：
-   - `5m_vs_6m` 的关键 4 组配置应全部 complete。
-   - `3s5z` 至少 AttnComm other/self seeds `1/2/3` complete。
-5. 重新生成 curves 和 heatmap。
+1. `3s5z` AttnComm sanity check 已完成并同步，本地验证已通过。
+2. 当前定稿前不再强制占用 GPU 补跑实验；服务器 GPU 2/3/4/6 即使空闲，也可以先保留。
+3. 不再补 `3s5z`：该地图已完成 sanity check，best win 接近饱和，继续补 baseline 或更多 seeds 对主结论增益很小。
+4. 不立即补 `5m_vs_6m` seed4/5：它能增强统计可信度，但单个 5M run 成本较高，当前 3 seeds + paired analysis + `3s5z` sanity check 已可支撑谨慎结论。
+5. 不立即跑新地图，也不扩 AttnComm 到 IQL/VDN；这些只作为 optional future queue。
+6. 每次新增结果后运行：
+
+```powershell
+cd D:\MARL\MRAL-Server\MARL\pymarl
+powershell -ExecutionPolicy Bypass -File scripts\finalize_3s5z_rerun_local.ps1 -CopyPaperFigures
+```
 
 ### 8.2 论文
 
 下一次更新论文时，重点检查：
 
-- `3s5z` AttnComm 完成后，是否作为 sanity check 加一小段。
+- `3s5z` 只能作为 sanity check：已补齐，但接近饱和。
+- `5m_vs_6m` 是主要正向诊断地图。
 - 不把 `3s5z` 写成强结论地图。
 - 不把 AttnComm 写成 SOTA。
+- 不声称跨地图稳定提升。
 - 保持“direct transfer 不稳定，communication dimension 更适配”的主线。
 
 ### 8.3 如果要继续增强结果
 
 优先级建议：
 
-1. 先补齐并分析 `3s5z` AttnComm sanity check。
-2. 再考虑增加 `5m_vs_6m` seeds。
-3. 再考虑新增一张中高难地图。
-4. 暂时不建议继续堆更深 AttnRes 或更重 AttnComm。
+1. 仅当时间非常宽裕时，补 `5m_vs_6m` seed4/5：`qmix`, `qmix_attnres_l2`, `qmix_attncomm_l2_other`, `qmix_attncomm_l2_self`。
+2. 若要补新地图，优先 `3s5z_vs_3s6z`，先跑 `qmix`, `qmix_attnres_l2`, `qmix_attncomm_l2_other` seeds `1,2,3`。
+3. 再考虑 `qmix_attncomm_l2_self` 或 `8m_vs_9m`。
+4. 暂时不建议继续堆更深 AttnRes、更重 AttnComm，或为了当前论文强行扩到 IQL/VDN。
 
 ## 9. 下次对话建议入口
 
 如果继续查结果：
 
 ```text
-请读取 paper/project_context_next_chat.md，检查本地 pymarl-results 里最新 5m_vs_6m 和 3s5z 结果，更新论文第 6/7/8 章。
+请读取 D:/MARL/MRAL-Server/MARL/pymarl/paper/project_context_next_chat.md，检查本地 pymarl-results 里最新 5m_vs_6m 和 3s5z 结果，并确认 3s5z sanity check 仍只作为补充证据。
 ```
 
 如果继续同步服务器：
 
 ```text
-请读取 paper/project_context_next_chat.md，给我需要从服务器 /home/xhl009/MARL/pymarl-results 同步回本地的具体路径和同步后要跑的汇总命令。
+请读取 D:/MARL/MRAL-Server/MARL/pymarl/paper/project_context_next_chat.md，给我需要从服务器 /home/xhl009/MARL/pymarl-results 同步回本地的具体路径和同步后要跑的汇总命令。
 ```
 
 如果继续写论文：
 
 ```text
-请读取 paper/project_context_next_chat.md，按照“direct transfer 不稳定，agent-wise communication 更适配”的主线，帮我润色摘要、结果和结论。
+请读取 D:/MARL/MRAL-Server/MARL/pymarl/paper/project_context_next_chat.md，按照“direct transfer 不稳定，agent-wise communication 更适配”的主线，帮我润色摘要、结果和结论。
 ```
 
 如果继续跑实验：
 
 ```text
-请读取 paper/project_context_next_chat.md，根据我实时给出的空闲 GPU 列表检查/修改 AttnComm 服务器脚本，并确认不会重跑 3s5z baseline。
+请读取 D:/MARL/MRAL-Server/MARL/pymarl/paper/project_context_next_chat.md，根据我实时给出的空闲 GPU 列表检查/修改 AttnComm 服务器脚本，并确认不会重跑 3s5z baseline。
+```
+
+## 10. 2026-05-13 Optional 5m_vs_6m Seed4/5 Insurance Queue
+
+当前论文仍不需要等待新增实验才能收口；这组实验只作为 GPU 2/3/4/6 空闲时的后台保险实验。
+
+已新增服务器脚本：
+
+```text
+scripts/run_5m_attncomm_seed45_4gpu_server.sh
+```
+
+默认任务：
+
+```text
+map=5m_vs_6m
+t_max=5000000
+test_nepisode=32
+seeds=4,5
+
+GPU 2: qmix seed4, qmix seed5
+GPU 3: qmix_attnres_l2 seed4, qmix_attnres_l2 seed5
+GPU 4: qmix_attncomm_l2_other seed4, qmix_attncomm_l2_other seed5
+GPU 6: qmix_attncomm_l2_self seed4, qmix_attncomm_l2_self seed5
+```
+
+服务器端 dry run：
+
+```bash
+cd /home/xhl009/MARL/pymarl
+conda activate pymarl-sc2
+DRY_RUN=1 bash scripts/run_5m_attncomm_seed45_4gpu_server.sh
+```
+
+正式启动：
+
+```bash
+cd /home/xhl009/MARL/pymarl
+conda activate pymarl-sc2
+bash scripts/run_5m_attncomm_seed45_4gpu_server.sh
+```
+
+脚本会写入：
+
+```text
+/home/xhl009/MARL/pymarl-results/run_manifests/<RUN_ID>.tsv
+/home/xhl009/MARL/pymarl-results/launcher_logs/<RUN_ID>/
+```
+
+完成后优先汇总 seeds 1-5 的 `5m_vs_6m`：
+
+```bash
+python scripts/summarize_marl_transfer_adaptation.py \
+  --sacred-dir /home/xhl009/MARL/pymarl-results/sacred \
+  --output-dir /home/xhl009/MARL/pymarl-results/diagnostics \
+  --maps 5m_vs_6m \
+  --primary-configs qmix,qmix_attnres_l2,qmix_attncomm_l2_other,qmix_attncomm_l2_self \
+  --seeds 1,2,3,4,5 \
+  --include-cross \
+  --cross-pairs qmix:qmix_attnres_l2,qmix:qmix_attncomm_l2_other,qmix:qmix_attncomm_l2_self
+```
+
+论文使用原则：
+
+```text
+不等这组实验定稿。
+若趋势一致，再把 AttnComm 5m_vs_6m 表更新为 5 seeds。
+若趋势变弱，作为 robustness discussion 或 appendix。
+若反转，改写为 promising but seed-sensitive；仍不写 SOTA 或跨地图稳定提升。
 ```

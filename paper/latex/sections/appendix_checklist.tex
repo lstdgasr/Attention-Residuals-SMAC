@@ -6,16 +6,15 @@
   \item \code{5m\_vs\_6m} QMIX variants win-rate learning curves。
   \item \code{3s5z} QMIX variants win-rate learning curves。
   \item \code{5m\_vs\_6m} IQL/VDN/QMIX cross-algorithm AttnRes-L2 learning curves。
-  \item \code{3s5z} IQL/VDN/QMIX cross-algorithm AttnRes-L2 learning curves（follow-up 完成后生成）。
   \item \code{5m\_vs\_6m} QMIX variants training wall-clock bar chart。
-  \item AttnRes-L2 attention heatmaps（基于记录 attention weights 的 seed4/5 runs）。
+  \item AttnComm agent-to-agent attention heatmaps。
   \item PyMARL/QMIX 训练框架图。
   \item 原始 RNN agent、AttnRes-RNN agent、depth-only control 结构图。
 \end{itemize}
 
 \subsection{当前实验完整性}
 
-当前预设实验中，QMIX 主线和 \code{5m\_vs\_6m} 跨算法验证均已补齐 3 个 seeds。
+当前预设实验中，QMIX 主线、\code{5m\_vs\_6m} 跨算法验证，以及 \code{3s5z} AttnComm sanity check 均已补齐 3 个 seeds。
 VDN baseline 新增 run 为：
 
 \begin{itemize}
@@ -24,8 +23,9 @@ VDN baseline 新增 run 为：
   \item \code{5m\_vs\_6m vdn seed3}: Sacred run 102。
 \end{itemize}
 
-重新汇总后，\code{marl\_transfer\_missing\_or\_partial.csv} 中无预设缺失项。
-本轮 follow-up 使用 GPU 0/2/3/4/5/6 补充 \code{3s5z} 跨算法验证，并将核心 QMIX、AttnRes-L2 和 depth-only control 扩展到 seed4/5；Full/Block 仍保持 3 seeds。
+重新汇总后，\code{marl\_transfer\_missing\_or\_partial.csv} 中不再包含 \code{3s5z} AttnRes-L2 或 AttnComm 的缺失项；剩余 \code{3s5z qmix} 缺失仅来自当前 AttnComm-focused 汇总命令未纳入旧主线 baseline，不影响论文主表。
+本轮不再将补跑 \code{5m\_vs\_6m} seed4/5、新增 hard map 或扩展 AttnComm 到 IQL/VDN 作为定稿前必要条件。
+这些实验保留为后续增强方向。
 
 \subsection{后续可扩展参考方向}
 

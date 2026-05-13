@@ -10,13 +10,15 @@
 更合理的适配路径是将 selective attention 思想迁移到 agent-wise communication 中，用于建模智能体间协同关系。
 从实验定位看，本文的主要价值在于给出一组可复现实验和适配性分析，而不是提出一个追求最优性能的新 MARL 算法。
 
-未来工作包括：
+当前实验已经足以支持上述谨慎结论，因此本文不将继续补跑 \code{3s5z}、扩展 AttnComm 到 IQL/VDN 或新增 hard map 作为定稿前的必要条件。
+后续工作可以从以下方向增强证据：
 
 \begin{itemize}
-  \item 在更多地图上扩展 VDN 与 IQL 的跨算法验证。
-  \item 在更多 SMAC 地图上验证不同复杂度任务中的迁移表现。
-  \item 完成并分析 \code{3s5z} AttnComm sanity check。
+  \item 在更多 SMAC 地图上验证不同复杂度任务中的迁移表现，优先选择比 \code{3s5z} 更有区分度的中高难地图。
+  \item 在 \code{5m\_vs\_6m} 上增加 paired seeds，进一步检验 AttnComm 与 AttnRes-L2 的 seed 稳定性。
+  \item 在更有区分度的 SMAC 地图上继续验证 AttnComm 信号，而不仅依赖接近饱和的 \code{3s5z} sanity check。
   \item 在更多 SMAC 地图上比较 \code{qmix\_attncomm\_l2\_other} 与 \code{qmix\_attncomm\_l2\_self}，检验 other-only communication 信号是否稳定。
+  \item 在 IQL 或 VDN 等其他后端上验证 AttnComm 是否仍具有类似趋势。
   \item 分析 communication attention weights 与 agent coordination 的关系。
-  \item 增加更多 seeds、paired seed delta 和统计显著性分析。
+  \item 增加统计显著性分析。
 \end{itemize}
